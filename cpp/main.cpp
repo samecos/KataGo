@@ -76,6 +76,8 @@ static int handleSubcommand(const string& subcommand, int argc, const char* argv
     return MainCmds::genconfig(argc-1,&argv[1],argv[0]);
   else if(subcommand == "gtp")
     return MainCmds::gtp(argc-1,&argv[1]);
+  else if (subcommand == "gtp2")
+      return MainCmds::gtp2(argc - 1, &argv[1]);
   else if(subcommand == "tuner")
     return MainCmds::tuner(argc-1,&argv[1]);
   else if(subcommand == "match")

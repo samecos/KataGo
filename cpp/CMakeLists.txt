@@ -196,6 +196,7 @@ add_executable(katago
   command/selfplay.cpp
   command/tune.cpp
   main.cpp
+  gtp2.cpp
   )
 
 if(USE_BACKEND STREQUAL "CUDA")

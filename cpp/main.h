@@ -7,6 +7,7 @@ namespace MainCmds {
   int gatekeeper(int argc, const char* const* argv);
   int genconfig(int argc, const char* const* argv, const char* firstCommand);
   int gtp(int argc, const char* const* argv);
+  int gtp2(int argc, const char* const* argv);
   int tuner(int argc, const char* const* argv);
   int match(int argc, const char* const* argv);
   int matchauto(int argc, const char* const* argv);
@@ -30,6 +31,7 @@ namespace MainCmds {
   int printclockinfo(int argc, const char* const* argv);
 
   int sandbox();
+
 }
 
 namespace Version {
