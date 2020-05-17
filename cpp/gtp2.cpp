@@ -1343,7 +1343,7 @@ int MainCmds::gtp2(int argc, const char* const* argv) {
     double staticPlayoutDoublingAdvantage = initialParams.playoutDoublingAdvantage;
     const bool staticPDATakesPrecedence = cfg.contains("playoutDoublingAdvantage") && !cfg.contains("dynamicPlayoutDoublingAdvantageCapPerOppLead");
     const bool avoidMYTDaggerHack = cfg.contains("avoidMYTDaggerHack") ? cfg.getBool("avoidMYTDaggerHack") : false;
-
+    const int GTPport = cfg.contains("GTPport") ? cfg.getInt("GTPport",0, 65535) : 3456;
     const int defaultBoardXSize =
         cfg.contains("defaultBoardXSize") ? cfg.getInt("defaultBoardXSize", 2, Board::MAX_LEN) :
         cfg.contains("defaultBoardSize") ? cfg.getInt("defaultBoardSize", 2, Board::MAX_LEN) :
@@ -1394,7 +1394,7 @@ int MainCmds::gtp2(int argc, const char* const* argv) {
     string line;
 
     asio::io_service io_service;
-    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), 3456);
+    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), GTPport);
     asio::ip::tcp::acceptor acceptor(io_service, endpoint);
     for (;;) {
         asio::ip::tcp::iostream stream;
