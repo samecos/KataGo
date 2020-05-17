@@ -15,10 +15,24 @@ void NeuralNet::globalCleanup() {
 
 ComputeContext* NeuralNet::createComputeContext(
   const std::vector<int>& gpuIdxs,
-  Logger* logger
+  Logger* logger,
+  int nnXLen,
+  int nnYLen,
+  string openCLTunerFile,
+  bool openCLReTunePerBoardSize,
+  enabled_t useFP16Mode,
+  enabled_t useNHWCMode,
+  const LoadedModel* loadedModel
 ) {
   (void)gpuIdxs;
   (void)logger;
+  (void)nnXLen;
+  (void)nnYLen;
+  (void)openCLTunerFile;
+  (void)openCLReTunePerBoardSize;
+  (void)useFP16Mode;
+  (void)useNHWCMode;
+  (void)loadedModel;
   throw StringError("Dummy neural net backend: NeuralNet::createComputeContext unimplemented");
 }
 void NeuralNet::freeComputeContext(ComputeContext* computeContext) {
@@ -26,15 +40,19 @@ void NeuralNet::freeComputeContext(ComputeContext* computeContext) {
   throw StringError("Dummy neural net backend: NeuralNet::freeComputeContext unimplemented");
 }
 
-LoadedModel* NeuralNet::loadModelFile(const string& file, int modelFileIdx) {
+LoadedModel* NeuralNet::loadModelFile(const string& file) {
   (void)file;
-  (void)modelFileIdx;
   throw StringError("Dummy neural net backend: NeuralNet::loadModelFile unimplemented");
 }
 
 void NeuralNet::freeLoadedModel(LoadedModel* loadedModel) {
   (void)loadedModel;
   throw StringError("Dummy neural net backend: NeuralNet::freeLoadedModel unimplemented");
+}
+
+string NeuralNet::getModelName(const LoadedModel* loadedModel) {
+  (void)loadedModel;
+  throw StringError("Dummy neural net backend: NeuralNet::getModelName unimplemented");
 }
 
 int NeuralNet::getModelVersion(const LoadedModel* loadedModel) {
@@ -54,31 +72,26 @@ ComputeHandle* NeuralNet::createComputeHandle(
   const LoadedModel* loadedModel,
   Logger* logger,
   int maxBatchSize,
-  int nnXLen,
-  int nnYLen,
   bool requireExactNNLen,
   bool inputsUseNHWC,
-  int gpuIdxForThisThread,
-  bool useFP16,
-  bool cudaUseNHWC
+  int gpuIdxForThisThread
 ) {
   (void)context;
   (void)loadedModel;
   (void)logger;
   (void)maxBatchSize;
-  (void)nnXLen;
-  (void)nnYLen;
   (void)requireExactNNLen;
   (void)inputsUseNHWC;
   (void)gpuIdxForThisThread;
-  (void)useFP16;
-  (void)cudaUseNHWC;
   throw StringError("Dummy neural net backend: NeuralNet::createLocalGpuHandle unimplemented");
 }
 
 void NeuralNet::freeComputeHandle(ComputeHandle* gpuHandle) {
   if(gpuHandle != NULL)
     throw StringError("Dummy neural net backend: NeuralNet::freeLocalGpuHandle unimplemented");
+}
+
+void NeuralNet::printDevices() {
 }
 
 InputBuffers* NeuralNet::createInputBuffers(const LoadedModel* loadedModel, int maxBatchSize, int nnXLen, int nnYLen) {
@@ -223,6 +236,29 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
   (void)useNHWC;
   (void)inputBuffer;
   (void)maskBuffer;
+  (void)outputBuffer;
+  return false;
+}
+
+bool NeuralNet::testEvaluateSymmetry(
+  int batchSize,
+  int numChannels,
+  int nnXLen,
+  int nnYLen,
+  bool useFP16,
+  bool useNHWC,
+  const bool* symmetriesBuffer,
+  const std::vector<float>& inputBuffer,
+  std::vector<float>& outputBuffer
+) {
+  (void)batchSize;
+  (void)numChannels;
+  (void)nnXLen;
+  (void)nnYLen;
+  (void)useFP16;
+  (void)useNHWC;
+  (void)symmetriesBuffer;
+  (void)inputBuffer;
   (void)outputBuffer;
   return false;
 }

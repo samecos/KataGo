@@ -1,5 +1,14 @@
 #include "main.h"
+
+#include "core/os.h"
+
+#ifdef NO_GIT_REVISION
+#define GIT_REVISION "<omitted>"
+#else
 #include "program/gitinfo.h"
+#endif
+
+#include <sstream>
 
 using namespace std;
 
@@ -8,16 +17,21 @@ static void printHelp(int argc, const char* argv[]) {
   if(argc >= 1)
     cout << "Usage: " << argv[0] << " SUBCOMMAND ";
   else
-    cout << "Usage: " << "./main" << " SUBCOMMAND ";
+    cout << "Usage: " << "./katago" << " SUBCOMMAND ";
   cout << endl;
 
   cout << R"%%(
 ---Common subcommands------------------
 
 gtp : Runs GTP engine that can be plugged into any standard Go GUI for play/analysis.
+benchmark : Test speed with different numbers of search threads.
+genconfig : User-friendly interface to generate a config with rules and automatic performance tuning.
+
 match : Run self-play match games based on a config, more efficient than gtp due to batching.
-evalsgf : Utility/debug tool, analyze a single position of a game from an SGF file.
 version : Print version and exit.
+
+analysis : Runs an engine designed to analyze entire games in parallel.
+tuner : (OpenCL only) Run tuning to find and optimize parameters that work on your GPU.
 
 ---Selfplay training subcommands---------
 
@@ -25,16 +39,21 @@ selfplay : Play selfplay games and generate training data.
 gatekeeper : Poll directory for new nets and match them against the latest net so far.
 
 ---Testing/debugging subcommands-------------
+evalsgf : Utility/debug tool, analyze a single position of a game from an SGF file.
 
 runtests : Test important board algorithms and datastructures
 runnnlayertests : Test a few subcomponents of the current neural net backend
 
 runnnontinyboardtest : Run neural net on a tiny board and dump result to stdout
+runnnsymmetriestest : Run neural net on a hardcoded rectangle board and dump symmetries result
+runownershiptests : Run neural net search on some hardcoded positions and print avg ownership
 
 runoutputtests : Run a bunch of things and dump details to stdout
 runsearchtests : Run a bunch of things using a neural net and dump details to stdout
 runsearchtestsv3 : Run a bunch more things using a neural net and dump details to stdout
+runsearchtestsv8 : Run a bunch more things using a neural net and dump details to stdout
 runselfplayinittests : Run some tests involving selfplay training init using a neural net and dump details to stdout
+runsekitrainwritetests : Run some tests involving seki train output
 
 ---Dev/experimental subcommands-------------
 demoplay
@@ -43,6 +62,74 @@ matchauto
 sandbox
 )%%" << endl;
 }
+
+static int handleSubcommand(const string& subcommand, int argc, const char* argv[]) {
+  if(subcommand == "analysis")
+    return MainCmds::analysis(argc-1,&argv[1]);
+  if(subcommand == "benchmark")
+    return MainCmds::benchmark(argc-1,&argv[1]);
+  if(subcommand == "evalsgf")
+    return MainCmds::evalsgf(argc-1,&argv[1]);
+  else if(subcommand == "gatekeeper")
+    return MainCmds::gatekeeper(argc-1,&argv[1]);
+  else if(subcommand == "genconfig")
+    return MainCmds::genconfig(argc-1,&argv[1],argv[0]);
+  else if(subcommand == "gtp")
+    return MainCmds::gtp(argc-1,&argv[1]);
+  else if(subcommand == "tuner")
+    return MainCmds::tuner(argc-1,&argv[1]);
+  else if(subcommand == "match")
+    return MainCmds::match(argc-1,&argv[1]);
+  else if(subcommand == "matchauto")
+    return MainCmds::matchauto(argc-1,&argv[1]);
+  else if(subcommand == "selfplay")
+    return MainCmds::selfplay(argc-1,&argv[1]);
+  else if(subcommand == "runtests")
+    return MainCmds::runtests(argc-1,&argv[1]);
+  else if(subcommand == "runnnlayertests")
+    return MainCmds::runnnlayertests(argc-1,&argv[1]);
+  else if(subcommand == "runnnontinyboardtest")
+    return MainCmds::runnnontinyboardtest(argc-1,&argv[1]);
+  else if(subcommand == "runnnsymmetriestest")
+    return MainCmds::runnnsymmetriestest(argc-1,&argv[1]);
+  else if(subcommand == "runownershiptests")
+    return MainCmds::runownershiptests(argc-1,&argv[1]);
+  else if(subcommand == "runoutputtests")
+    return MainCmds::runoutputtests(argc-1,&argv[1]);
+  else if(subcommand == "runsearchtests")
+    return MainCmds::runsearchtests(argc-1,&argv[1]);
+  else if(subcommand == "runsearchtestsv3")
+    return MainCmds::runsearchtestsv3(argc-1,&argv[1]);
+  else if(subcommand == "runsearchtestsv8")
+    return MainCmds::runsearchtestsv8(argc-1,&argv[1]);
+  else if(subcommand == "runselfplayinittests")
+    return MainCmds::runselfplayinittests(argc-1,&argv[1]);
+  else if(subcommand == "runsekitrainwritetests")
+    return MainCmds::runsekitrainwritetests(argc-1,&argv[1]);
+  else if(subcommand == "runnnonmanyposestest")
+    return MainCmds::runnnonmanyposestest(argc-1,&argv[1]);
+  else if(subcommand == "dataminesgfs")
+    return MainCmds::dataminesgfs(argc-1,&argv[1]);
+  else if(subcommand == "lzcost")
+    return MainCmds::lzcost(argc-1,&argv[1]);
+  else if(subcommand == "demoplay")
+    return MainCmds::demoplay(argc-1,&argv[1]);
+  else if(subcommand == "printclockinfo")
+    return MainCmds::printclockinfo(argc-1,&argv[1]);
+  else if(subcommand == "sandbox")
+    return MainCmds::sandbox();
+  else if(subcommand == "version") {
+    cout << Version::getKataGoVersionFullInfo() << std::flush;
+    return 0;
+  }
+  else {
+    cout << "Unknown subcommand: " << subcommand << endl;
+    printHelp(argc,argv);
+    return 1;
+  }
+  return 0;
+}
+
 
 int main(int argc, const char* argv[]) {
   if(argc < 2) {
@@ -55,58 +142,49 @@ int main(int argc, const char* argv[]) {
     return 0;
   }
 
-  if(cmdArg == "evalsgf")
-    return MainCmds::evalsgf(argc-1,&argv[1]);
-  else if(cmdArg == "gatekeeper")
-    return MainCmds::gatekeeper(argc-1,&argv[1]);
-  else if(cmdArg == "gtp")
-    return MainCmds::gtp(argc-1,&argv[1]);
-  else if(cmdArg == "match")
-    return MainCmds::match(argc-1,&argv[1]);
-  else if(cmdArg == "matchauto")
-    return MainCmds::matchauto(argc-1,&argv[1]);
-  else if(cmdArg == "selfplay")
-    return MainCmds::selfplay(argc-1,&argv[1]);
-  else if(cmdArg == "runtests")
-    return MainCmds::runtests(argc-1,&argv[1]);
-  else if(cmdArg == "runnnlayertests")
-    return MainCmds::runnnlayertests(argc-1,&argv[1]);
-  else if(cmdArg == "runnnontinyboardtest")
-    return MainCmds::runnnontinyboardtest(argc-1,&argv[1]);
-  else if(cmdArg == "runoutputtests")
-    return MainCmds::runoutputtests(argc-1,&argv[1]);
-  else if(cmdArg == "runsearchtests")
-    return MainCmds::runsearchtests(argc-1,&argv[1]);
-  else if(cmdArg == "runsearchtestsv3")
-    return MainCmds::runsearchtestsv3(argc-1,&argv[1]);
-  else if(cmdArg == "runselfplayinittests")
-    return MainCmds::runselfplayinittests(argc-1,&argv[1]);
-  else if(cmdArg == "lzcost")
-    return MainCmds::lzcost(argc-1,&argv[1]);
-  else if(cmdArg == "demoplay")
-    return MainCmds::demoplay(argc-1,&argv[1]);
-  else if(cmdArg == "sandbox")
-    return MainCmds::sandbox();
-  else if(cmdArg == "version") {
-    cout << Version::getKataGoVersionForHelp() << endl;
-    cout << "Git revision: " << Version::getGitRevision() << endl;
-    cout << "Compile Time: " << __DATE__ << " " << __TIME__ << endl;
-    return 0;
+#if defined(OS_IS_WINDOWS)
+  //On windows, uncaught exceptions reaching toplevel don't normally get printed out,
+  //so explicitly catch everything and print
+  int result;
+  try {
+    result = handleSubcommand(cmdArg, argc, argv);
   }
-  else {
-    cout << "Unknown subcommand: " << cmdArg << endl;
-    printHelp(argc,argv);
+  catch(std::exception& e) {
+    cout << "Uncaught exception: " << e.what() << endl;
     return 1;
   }
-  return 0;
+  catch(...) {
+    cout << "Uncaught exception that is not a std::exception... exiting due to unknown error" << endl;
+    return 1;
+  }
+  return result;
+#else
+  return handleSubcommand(cmdArg, argc, argv);
+#endif
 }
 
+
 string Version::getKataGoVersion() {
-  return string("1.1");
+  return string("1.4.2");
 }
 
 string Version::getKataGoVersionForHelp() {
-  return string("KataGo v1.1");
+  return string("KataGo v1.4.2");
+}
+
+string Version::getKataGoVersionFullInfo() {
+  ostringstream out;
+  out << Version::getKataGoVersionForHelp() << endl;
+  out << "Git revision: " << Version::getGitRevision() << endl;
+  out << "Compile Time: " << __DATE__ << " " << __TIME__ << endl;
+#if defined(USE_CUDA_BACKEND)
+  out << "Using CUDA backend" << endl;
+#elif defined(USE_OPENCL_BACKEND)
+  out << "Using OpenCL backend" << endl;
+#else
+  out << "Using dummy backend" << endl;
+#endif
+  return out.str();
 }
 
 string Version::getGitRevision() {

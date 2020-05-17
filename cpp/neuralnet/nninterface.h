@@ -2,6 +2,7 @@
 #define NEURALNET_NNINTERFACE_H_
 
 #include "../core/global.h"
+#include "../core/commontypes.h"
 #include "../core/hash.h"
 #include "../core/logger.h"
 #include "../neuralnet/desc.h"
@@ -30,26 +31,38 @@ namespace NeuralNet {
   // Call globalCleanup() at program termination.
   void globalCleanup();
 
-  // Context -------------------------------------------------------------------
-
-  ComputeContext* createComputeContext(
-    //The indices of all gpus that this context will be used for.
-    const std::vector<int>& gpuIdxs,
-    Logger* logger
-  );
-  //A ComputeContext should NOT be freed until all ComputeHandles created using it have also been freed.
-  void freeComputeContext(ComputeContext* computeContext);
+  //Print available backend devices
+  void printDevices();
 
   // Model I/O -----------------------------------------------------------------
 
-  LoadedModel* loadModelFile(const std::string& file, int modelFileIdx);
+  LoadedModel* loadModelFile(const std::string& file);
   void freeLoadedModel(LoadedModel* loadedModel);
 
+  std::string getModelName(const LoadedModel* loadedModel);
   int getModelVersion(const LoadedModel* loadedModel);
 
   //Return the "nearest" supported ruleset to desiredRules by this model.
   //Fills supported with true if desiredRules itself was exactly supported, false if some modifications had to be made.
   Rules getSupportedRules(const LoadedModel* loadedModel, const Rules& desiredRules, bool& supported);
+
+  // Context -------------------------------------------------------------------
+
+  ComputeContext* createComputeContext(
+    //The indices of all gpus that this context will be used for.
+    //-1 as an entry indicates to select a default
+    const std::vector<int>& gpuIdxs,
+    Logger* logger,
+    int nnXLen,
+    int nnYLen,
+    std::string openCLTunerFile,
+    bool openCLReTunePerBoardSize,
+    enabled_t useFP16Mode,
+    enabled_t useNHWCMode,
+    const LoadedModel* loadedModel
+  );
+  //A ComputeContext should NOT be freed until all ComputeHandles created using it have also been freed.
+  void freeComputeContext(ComputeContext* computeContext);
 
   // Compute Handle -----------------------------------------------------------------
 
@@ -59,18 +72,15 @@ namespace NeuralNet {
   // some info messages to it. If requireExactNNLen is true, the backend is
   // allowed to assume that all boards to evaluate will be of size exactly equal
   // to (nnXLen,nnYLen) rather than smaller, and skip any masking operations.
+  // gpuIdxForThisThread == -1 indicates to select a default GPU.
   ComputeHandle* createComputeHandle(
     ComputeContext* context,
     const LoadedModel* loadedModel,
     Logger* logger,
     int maxBatchSize,
-    int nnXLen,
-    int nnYLen,
     bool requireExactNNLen,
     bool inputsUseNHWC,
-    int gpuIdxForThisThread,
-    bool useFP16,
-    bool cudaUseNHWC
+    int gpuIdxForThisThread
   );
   void freeComputeHandle(ComputeHandle* computeHandle);
 
@@ -168,6 +178,18 @@ namespace NeuralNet {
     bool useNHWC,
     const std::vector<float>& inputBuffer,
     const std::vector<float>& maskBuffer,
+    std::vector<float>& outputBuffer
+  );
+
+  bool testEvaluateSymmetry(
+    int batchSize,
+    int numChannels,
+    int nnXLen,
+    int nnYLen,
+    bool useFP16,
+    bool useNHWC,
+    const bool* symmetries,
+    const std::vector<float>& inputBuffer,
     std::vector<float>& outputBuffer
   );
 
