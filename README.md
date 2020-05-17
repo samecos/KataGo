@@ -156,6 +156,9 @@ Or for example as noted earlier above in bold, if you have a default config and 
   * Or from a different path: `whatever/path/to/katago gtp`
   * **Alternatively, this is the command you want to tell your GUI (Lizzie, Sabaki, GoGui, etc) to use to run KataGo** (if you have a default config and model file).
 
+Or for Socks5 connect to GTP Engine, If the network between your server and the local machine is not good, you can try this mode to avoid the engine exit.This way is calld "GTP2".
+   * `./katago gtp2 -model <NEURALNET>.gz -config <GTP_CONFIG>.cfg`
+
 Run a JSON-based [analysis engine](docs/Analysis_Engine.md) that can do efficient batched evaluations for a backend Go service:
 
    * `./katago analysis -model <NEURALNET>.gz -config <ANALYSIS_CONFIG>.cfg -analysis-threads N`
