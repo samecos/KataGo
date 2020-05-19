@@ -14,8 +14,8 @@
 
 using namespace std;
 namespace asio = boost::asio;
+//asio::ip::tcp::iostream m_stream;
 asio::ip::tcp::iostream stream;
-
 static const vector<string> knownCommands = {
     //Basic GTP commands
     "protocol_version",
@@ -395,6 +395,25 @@ struct GTPEngine {
         //Currently nothing
     }
 
+    void startonport() {
+        
+        asio::io_service io_service;
+        asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), 3456);
+        asio::ip::tcp::acceptor acceptor(io_service, endpoint);
+        for (;;) {
+            asio::ip::tcp::iostream stream;
+            asio::ip::tcp::endpoint peer;
+            acceptor.accept(*stream.rdbuf(), peer);
+            std::string ip = peer.address().to_string();
+            stream << "Connected with :" << ip << endl;
+            
+            boost::system::error_code ec;
+            if (ec) {
+                break;
+            }
+        }
+    }
+
     //Specify -1 for the sizes for a default
     void setOrResetBoardSize(ConfigParser& cfg, Logger& logger, Rand& seedRand, int boardXSize, int boardYSize) {
         if (nnEval != NULL && boardXSize == nnEval->getNNXLen() && boardYSize == nnEval->getNNYLen())
@@ -709,6 +728,7 @@ struct GTPEngine {
                     }
                 }
                 //cout << out.str() << endl;
+                //m_stream << out.str() << endl;
                 stream << out.str() << endl;
             };
         }
@@ -1249,6 +1269,7 @@ static GTPEngine::AnalyzeArgs parseAnalyzeCommand(const string& command, const v
 }
 
 
+
 int MainCmds::gtp2(int argc, const char* const* argv) {
     Board::initHash();
     ScoreValue::initTables();
@@ -1390,23 +1411,22 @@ int MainCmds::gtp2(int argc, const char* const* argv) {
         cerr << "Model name: " + (engine->nnEval == NULL ? string() : engine->nnEval->getInternalModelName()) << endl;
         cerr << "GTP ready, beginning main protocol loop" << endl;
     }
-
     bool currentlyAnalyzing = false;
     string line;
-
     asio::io_service io_service;
     asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), GTPport);
     asio::ip::tcp::acceptor acceptor(io_service, endpoint);
     for (;;) {
-        stream.flush();
+        stream.clear();
+        stream.close();
         asio::ip::tcp::endpoint peer;
         acceptor.accept(*stream.rdbuf(), peer);
-        std::string ip = peer.address().to_string();
         stream.rdbuf()->set_option(asio::ip::tcp::socket::keep_alive(true));
-
+        std::string ip = peer.address().to_string();
+        cout << "Connected with :" << ip << endl;
+        stream << "Connected with :" << ip << endl;
         while (stream) {
             getline(stream, line);
-
             //Parse command, extracting out the command itself, the arguments, and any GTP id number for the command.
             string command;
             vector<string> pieces;
