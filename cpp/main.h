@@ -31,7 +31,6 @@ namespace MainCmds {
   int printclockinfo(int argc, const char* const* argv);
 
   int sandbox();
-
 }
 
 namespace Version {

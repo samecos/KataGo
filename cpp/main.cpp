@@ -64,64 +64,64 @@ sandbox
 }
 
 static int handleSubcommand(const string& subcommand, int argc, const char* argv[]) {
-  if(subcommand == "analysis")
-    return MainCmds::analysis(argc-1,&argv[1]);
-  if(subcommand == "benchmark")
-    return MainCmds::benchmark(argc-1,&argv[1]);
-  if(subcommand == "evalsgf")
-    return MainCmds::evalsgf(argc-1,&argv[1]);
-  else if(subcommand == "gatekeeper")
-    return MainCmds::gatekeeper(argc-1,&argv[1]);
-  else if(subcommand == "genconfig")
-    return MainCmds::genconfig(argc-1,&argv[1],argv[0]);
-  else if(subcommand == "gtp")
-    return MainCmds::gtp(argc-1,&argv[1]);
+    if (subcommand == "analysis")
+        return MainCmds::analysis(argc - 1, &argv[1]);
+  if (subcommand == "benchmark")
+      return MainCmds::benchmark(argc - 1, &argv[1]);
+  if (subcommand == "evalsgf")
+      return MainCmds::evalsgf(argc - 1, &argv[1]);
+  else if (subcommand == "gatekeeper")
+      return MainCmds::gatekeeper(argc - 1, &argv[1]);
+  else if (subcommand == "genconfig")
+      return MainCmds::genconfig(argc - 1, &argv[1], argv[0]);
+  else if (subcommand == "gtp")
+      return MainCmds::gtp(argc - 1, &argv[1]);
   else if (subcommand == "gtp2")
       return MainCmds::gtp2(argc - 1, &argv[1]);
-  else if(subcommand == "tuner")
-    return MainCmds::tuner(argc-1,&argv[1]);
-  else if(subcommand == "match")
-    return MainCmds::match(argc-1,&argv[1]);
-  else if(subcommand == "matchauto")
-    return MainCmds::matchauto(argc-1,&argv[1]);
-  else if(subcommand == "selfplay")
-    return MainCmds::selfplay(argc-1,&argv[1]);
-  else if(subcommand == "runtests")
-    return MainCmds::runtests(argc-1,&argv[1]);
-  else if(subcommand == "runnnlayertests")
-    return MainCmds::runnnlayertests(argc-1,&argv[1]);
-  else if(subcommand == "runnnontinyboardtest")
-    return MainCmds::runnnontinyboardtest(argc-1,&argv[1]);
-  else if(subcommand == "runnnsymmetriestest")
-    return MainCmds::runnnsymmetriestest(argc-1,&argv[1]);
-  else if(subcommand == "runownershiptests")
-    return MainCmds::runownershiptests(argc-1,&argv[1]);
-  else if(subcommand == "runoutputtests")
-    return MainCmds::runoutputtests(argc-1,&argv[1]);
-  else if(subcommand == "runsearchtests")
-    return MainCmds::runsearchtests(argc-1,&argv[1]);
-  else if(subcommand == "runsearchtestsv3")
-    return MainCmds::runsearchtestsv3(argc-1,&argv[1]);
-  else if(subcommand == "runsearchtestsv8")
-    return MainCmds::runsearchtestsv8(argc-1,&argv[1]);
-  else if(subcommand == "runselfplayinittests")
-    return MainCmds::runselfplayinittests(argc-1,&argv[1]);
-  else if(subcommand == "runsekitrainwritetests")
-    return MainCmds::runsekitrainwritetests(argc-1,&argv[1]);
-  else if(subcommand == "runnnonmanyposestest")
-    return MainCmds::runnnonmanyposestest(argc-1,&argv[1]);
-  else if(subcommand == "dataminesgfs")
-    return MainCmds::dataminesgfs(argc-1,&argv[1]);
-  else if(subcommand == "lzcost")
-    return MainCmds::lzcost(argc-1,&argv[1]);
-  else if(subcommand == "demoplay")
-    return MainCmds::demoplay(argc-1,&argv[1]);
-  else if(subcommand == "printclockinfo")
-    return MainCmds::printclockinfo(argc-1,&argv[1]);
-  else if(subcommand == "sandbox")
-    return MainCmds::sandbox();
-  else if(subcommand == "version") {
-    cout << Version::getKataGoVersionFullInfo() << std::flush;
+  else if (subcommand == "tuner")
+      return MainCmds::tuner(argc - 1, &argv[1]);
+  else if (subcommand == "match")
+      return MainCmds::match(argc - 1, &argv[1]);
+  else if (subcommand == "matchauto")
+      return MainCmds::matchauto(argc - 1, &argv[1]);
+  else if (subcommand == "selfplay")
+      return MainCmds::selfplay(argc - 1, &argv[1]);
+  else if (subcommand == "runtests")
+      return MainCmds::runtests(argc - 1, &argv[1]);
+  else if (subcommand == "runnnlayertests")
+      return MainCmds::runnnlayertests(argc - 1, &argv[1]);
+  else if (subcommand == "runnnontinyboardtest")
+      return MainCmds::runnnontinyboardtest(argc - 1, &argv[1]);
+  else if (subcommand == "runnnsymmetriestest")
+      return MainCmds::runnnsymmetriestest(argc - 1, &argv[1]);
+  else if (subcommand == "runownershiptests")
+      return MainCmds::runownershiptests(argc - 1, &argv[1]);
+  else if (subcommand == "runoutputtests")
+      return MainCmds::runoutputtests(argc - 1, &argv[1]);
+  else if (subcommand == "runsearchtests")
+      return MainCmds::runsearchtests(argc - 1, &argv[1]);
+  else if (subcommand == "runsearchtestsv3")
+      return MainCmds::runsearchtestsv3(argc - 1, &argv[1]);
+  else if (subcommand == "runsearchtestsv8")
+      return MainCmds::runsearchtestsv8(argc - 1, &argv[1]);
+  else if (subcommand == "runselfplayinittests")
+      return MainCmds::runselfplayinittests(argc - 1, &argv[1]);
+  else if (subcommand == "runsekitrainwritetests")
+      return MainCmds::runsekitrainwritetests(argc - 1, &argv[1]);
+  else if (subcommand == "runnnonmanyposestest")
+      return MainCmds::runnnonmanyposestest(argc - 1, &argv[1]);
+  else if (subcommand == "dataminesgfs")
+      return MainCmds::dataminesgfs(argc - 1, &argv[1]);
+  else if (subcommand == "lzcost")
+      return MainCmds::lzcost(argc - 1, &argv[1]);
+  else if (subcommand == "demoplay")
+      return MainCmds::demoplay(argc - 1, &argv[1]);
+  else if (subcommand == "printclockinfo")
+      return MainCmds::printclockinfo(argc - 1, &argv[1]);
+  else if (subcommand == "sandbox")
+      return MainCmds::sandbox();
+  else if (subcommand == "version") {
+      cout << Version::getKataGoVersionFullInfo() << std::flush;
     return 0;
   }
   else {

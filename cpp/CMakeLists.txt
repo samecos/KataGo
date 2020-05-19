@@ -186,11 +186,11 @@ add_executable(katago
   command/benchmark.cpp
   command/evalsgf.cpp
   command/gatekeeper.cpp
-  command/gtp.cpp
   command/lzcost.cpp
   command/match.cpp
   command/matchauto.cpp
   command/misc.cpp
+  command/gtp.cpp
   command/runtests.cpp
   command/sandbox.cpp
   command/selfplay.cpp

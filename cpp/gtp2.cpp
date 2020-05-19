@@ -14,6 +14,8 @@
 
 using namespace std;
 namespace asio = boost::asio;
+asio::ip::tcp::iostream stream;
+
 static const vector<string> knownCommands = {
     //Basic GTP commands
     "protocol_version",
@@ -315,7 +317,6 @@ struct GTPEngine {
     bool staticPDATakesPrecedence;
     double genmoveWideRootNoise;
     double analysisWideRootNoise;
-
     NNEvaluator* nnEval;
     AsyncBot* bot;
     Rules currentRules; //Should always be the same as the rules in bot, if bot is not NULL.
@@ -589,7 +590,7 @@ struct GTPEngine {
         double secondsPerReport = 1e30;
     };
 
-    std::function<void(const Search* search)> getAnalyzeCallback(Player pla, AnalyzeArgs args) {
+    std::function<void(const Search* search)> getAnalyzeCallback2(Player pla, AnalyzeArgs args) {
         std::function<void(const Search* search)> callback;
         //lz-analyze
         if (args.lz && !args.kata) {
@@ -707,8 +708,8 @@ struct GTPEngine {
                         }
                     }
                 }
-
-                cout << out.str() << endl;
+                //cout << out.str() << endl;
+                stream << out.str() << endl;
             };
         }
         return callback;
@@ -770,7 +771,7 @@ struct GTPEngine {
 
         Loc moveLoc;
         if (args.analyzing) {
-            std::function<void(const Search* search)> callback = getAnalyzeCallback(pla, args);
+            std::function<void(const Search* search)> callback = getAnalyzeCallback2(pla, args);
             if (args.showOwnership)
                 bot->setAlwaysIncludeOwnerMap(true);
             else
@@ -988,7 +989,7 @@ struct GTPEngine {
         clearStatsForNewGame();
     }
 
-    void analyze(Player pla, AnalyzeArgs args) {
+    void analyze2(Player pla, AnalyzeArgs args) {
         assert(args.analyzing);
         //Analysis should ALWAYS be with the static value to prevent random hard-to-predict changes
         //for users.
@@ -1006,7 +1007,7 @@ struct GTPEngine {
             bot->setParams(params);
         }
 
-        std::function<void(Search* search)> callback = getAnalyzeCallback(pla, args);
+        std::function<void(Search* search)> callback = getAnalyzeCallback2(pla, args);
         if (args.showOwnership)
             bot->setAlwaysIncludeOwnerMap(true);
         else
@@ -1397,7 +1398,7 @@ int MainCmds::gtp2(int argc, const char* const* argv) {
     asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), GTPport);
     asio::ip::tcp::acceptor acceptor(io_service, endpoint);
     for (;;) {
-        asio::ip::tcp::iostream stream;
+        stream.flush();
         asio::ip::tcp::endpoint peer;
         acceptor.accept(*stream.rdbuf(), peer);
         std::string ip = peer.address().to_string();
@@ -2354,7 +2355,7 @@ int MainCmds::gtp2(int argc, const char* const* argv) {
                     else
                         stream << "=" << endl;
 
-                    engine->analyze(pla, args);
+                    engine->analyze2(pla, args);
 
                     //No response - currentlyAnalyzing will make sure we get a newline at the appropriate time, when stopped.
                     suppressResponse = true;
@@ -2417,20 +2418,26 @@ int MainCmds::gtp2(int argc, const char* const* argv) {
             if (logAllGTPCommunication)
                 logger.write(response);
 
-            if (shouldQuitAfterResponse)
-                break;
+            if (shouldQuitAfterResponse) {
+                delete engine;
+                engine = NULL;
+                NeuralNet::globalCleanup();
+                ScoreValue::freeTables();
+                logger.write("All cleaned up, quitting");
+                return 0;
+            }
 
             if (maybeStartPondering && ponderingEnabled)
                 engine->ponder();
 
         } //Close read loop
-
-        delete engine;
-        engine = NULL;
-        NeuralNet::globalCleanup();
-        ScoreValue::freeTables();
-
-        logger.write("All cleaned up, quitting");
     }
+    delete engine;
+    engine = NULL;
+    NeuralNet::globalCleanup();
+    ScoreValue::freeTables();
+
+    logger.write("All cleaned up, quitting");
+    
     return 0;
 }
