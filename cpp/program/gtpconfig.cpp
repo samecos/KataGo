@@ -276,7 +276,7 @@ string GTPConfig::makeConfig(
     replacement += "numNNServerThreadsPerModel = " + Global::uint64ToString(deviceIdxs.size()) + "\n";
 
     for(int i = 0; i<deviceIdxs.size(); i++) {
-#ifdef USE_CUDA_BACKEND
+#if defined(USE_CUDA_BACKEND) || defined(USE_TENSORRT_BACKEND) 
       replacement += "cudaDeviceToUseThread" + Global::intToString(i) + " = " + Global::intToString(deviceIdxs[i]) + "\n";
 #endif
 #ifdef USE_OPENCL_BACKEND
