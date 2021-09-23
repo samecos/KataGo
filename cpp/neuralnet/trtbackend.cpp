@@ -803,11 +803,11 @@ struct ComputeHandle {
   vector<pair<string, Dims>> debugOutputs;
 
   ComputeHandle(
+    const cudaDeviceProp* prop,
     ComputeContext* context,
     const LoadedModel* loadedModel,
     int maxBatchSize,
-    bool requireExactNNLen,
-    cudaDeviceProp prop) {
+    bool requireExactNNLen) {
     ctx = context;
 
     modelVersion = loadedModel->modelDesc.version;
@@ -847,9 +847,9 @@ struct ComputeHandle {
       cacheDir += "/trtcache";
       MakeDir::make(cacheDir);
 
-      char uuid[sizeof(prop.uuid.bytes) * 2 + 1];
+      char uuid[sizeof(prop->uuid.bytes) * 2 + 1];
       int i = 0;
-      for(unsigned char byte: prop.uuid.bytes) {
+      for(unsigned char byte: prop->uuid.bytes) {
         sprintf(uuid + i, "%02x", byte);
         i += 2;
       }
@@ -1021,13 +1021,19 @@ ComputeHandle* NeuralNet::createComputeHandle(
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, gpuIdxForThisThread);
 
-  auto handle = new ComputeHandle(context, loadedModel, maxBatchSize, requireExactNNLen, prop);
-
   if(logger != NULL) {
     logger->write(
       "TensorRT backend thread " + Global::intToString(serverThreadIdx) + ": Found GPU " + string(prop.name) +
       " memory " + Global::uint64ToString(prop.totalGlobalMem) + " compute capability major " +
       Global::intToString(prop.major) + " minor " + Global::intToString(prop.minor));
+    logger->write(
+      "TensorRT backend thread " + Global::intToString(serverThreadIdx) +
+      ": Initializing (may take a long time)");
+  }
+
+  auto handle = new ComputeHandle(&prop, context, loadedModel, maxBatchSize, requireExactNNLen);
+
+  if(logger != NULL) {
     logger->write(
       "TensorRT backend thread " + Global::intToString(serverThreadIdx) + ": Model version " +
       Global::intToString(loadedModel->modelDesc.version) + " useFP16 = " + Global::boolToString(handle->usingFP16));
@@ -1049,7 +1055,7 @@ void NeuralNet::printDevices() {
   for(int i = 0; i < numDevices; i++) {
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, i);
-    cout << "Found CUDA device " << i << ": " << prop.name << endl;
+    cout << "Found GPU device " << i << ": " << prop.name << endl;
   }
 }
 
