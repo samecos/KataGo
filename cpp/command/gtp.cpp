@@ -3051,4 +3051,5 @@ int MainCmds::gtponport(const vector<string>& args) {
   NeuralNet::globalCleanup();
   ScoreValue::freeTables();
   result.logger.write("All cleaned up, quitting");
+  return 0;
 }
