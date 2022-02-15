@@ -12,9 +12,9 @@
 #include "../tests/tests.h"
 #include "../command/commandline.h"
 #include "../main.h"
-
+#include <boost/asio.hpp>
 using namespace std;
-
+namespace asio = boost::asio;
 static const vector<string> knownCommands = {
   //Basic GTP commands
   "protocol_version",
@@ -675,13 +675,13 @@ struct GTPEngine {
     buf.resize(keptMoves);
   }
 
-  std::function<void(const Search* search)> getAnalyzeCallback(Player pla, AnalyzeArgs args) {
+  std::function<void(const Search* search)> getAnalyzeCallback(Player pla, AnalyzeArgs args, std::ostream& s_out) {
     std::function<void(const Search* search)> callback;
     //lz-analyze
     if(args.lz && !args.kata) {
       //Avoid capturing anything by reference except [this], since this will potentially be used
       //asynchronously and called after we return
-      callback = [args,pla,this](const Search* search) {
+      callback = [args,pla,&s_out,this](const Search* search) {
         vector<AnalysisData> buf;
         bool duplicateForSymmetries = true;
         search->getAnalysisData(buf,args.minMoves,false,analysisPVLen,duplicateForSymmetries);
@@ -694,7 +694,7 @@ struct GTPEngine {
         const Board board = search->getRootBoard();
         for(int i = 0; i<buf.size(); i++) {
           if(i > 0)
-            cout << " ";
+            s_out << " ";
           const AnalysisData& data = buf[i];
           double winrate = 0.5 * (1.0 + data.winLossValue);
           double lcb = PlayUtils::getHackedLCBForWinrate(search,data,pla);
@@ -702,32 +702,32 @@ struct GTPEngine {
             winrate = 1.0-winrate;
             lcb = 1.0 - lcb;
           }
-          cout << "info";
-          cout << " move " << Location::toString(data.move,board);
-          cout << " visits " << data.numVisits;
-          cout << " winrate " << round(winrate * 10000.0);
-          cout << " prior " << round(data.policyPrior * 10000.0);
-          cout << " lcb " << round(lcb * 10000.0);
-          cout << " order " << data.order;
-          cout << " pv ";
+          s_out << "info";
+          s_out << " move " << Location::toString(data.move,board);
+          s_out << " visits " << data.numVisits;
+          s_out << " winrate " << round(winrate * 10000.0);
+          s_out << " prior " << round(data.policyPrior * 10000.0);
+          s_out << " lcb " << round(lcb * 10000.0);
+          s_out << " order " << data.order;
+          s_out << " pv ";
           if(preventEncore && data.pvContainsPass())
-            data.writePVUpToPhaseEnd(cout,board,search->getRootHist(),search->getRootPla());
+            data.writePVUpToPhaseEnd(s_out,board,search->getRootHist(),search->getRootPla());
           else
-            data.writePV(cout,board);
+            data.writePV(s_out,board);
           if(args.showPVVisits) {
-            cout << " pvVisits ";
+            s_out << " pvVisits ";
             if(preventEncore && data.pvContainsPass())
-              data.writePVVisitsUpToPhaseEnd(cout,board,search->getRootHist(),search->getRootPla());
+              data.writePVVisitsUpToPhaseEnd(s_out,board,search->getRootHist(),search->getRootPla());
             else
-              data.writePVVisits(cout);
+              data.writePVVisits(s_out);
           }
         }
-        cout << endl;
+        s_out << endl;
       };
     }
     //kata-analyze, analyze (sabaki)
     else {
-      callback = [args,pla,this](const Search* search) {
+      callback = [args,pla,&s_out,this](const Search* search) {
         vector<AnalysisData> buf;
         bool duplicateForSymmetries = true;
         search->getAnalysisData(buf,args.minMoves,false,analysisPVLen,duplicateForSymmetries);
@@ -836,7 +836,7 @@ struct GTPEngine {
           }
         }
 
-        cout << out.str() << endl;
+        s_out << out.str() << endl;
       };
     }
     return callback;
@@ -849,7 +849,7 @@ struct GTPEngine {
     bool allowResignation, double resignThreshold, int resignConsecTurns, double resignMinScoreDifference,
     bool logSearchInfo, bool debug, bool playChosenMove,
     string& response, bool& responseIsError, bool& maybeStartPondering,
-    AnalyzeArgs args
+    AnalyzeArgs args, std::ostream& s_out
   ) {
     ClockTimer timer;
 
@@ -916,7 +916,7 @@ struct GTPEngine {
     Loc moveLoc;
     bot->setAvoidMoveUntilByLoc(args.avoidMoveUntilByLocBlack,args.avoidMoveUntilByLocWhite);
     if(args.analyzing) {
-      std::function<void(const Search* search)> callback = getAnalyzeCallback(pla,args);
+      std::function<void(const Search* search)> callback = getAnalyzeCallback(pla,args,s_out);
       if(args.showOwnership || args.showOwnershipStdev)
         bot->setAlwaysIncludeOwnerMap(true);
       else
@@ -1126,7 +1126,7 @@ struct GTPEngine {
     clearStatsForNewGame();
   }
 
-  void analyze(Player pla, AnalyzeArgs args) {
+  void analyze(Player pla, AnalyzeArgs args, std::ostream& s_out) {
     assert(args.analyzing);
     //Analysis should ALWAYS be with the static value to prevent random hard-to-predict changes
     //for users.
@@ -1148,7 +1148,7 @@ struct GTPEngine {
       bot->setParams(params);
     }
 
-    std::function<void(const Search* search)> callback = getAnalyzeCallback(pla,args);
+    std::function<void(const Search* search)> callback = getAnalyzeCallback(pla,args,s_out);
     bot->setAvoidMoveUntilByLoc(args.avoidMoveUntilByLocBlack,args.avoidMoveUntilByLocWhite);
     if(args.showOwnership || args.showOwnershipStdev)
       bot->setAlwaysIncludeOwnerMap(true);
@@ -1494,7 +1494,7 @@ static GTPEngine::AnalyzeArgs parseAnalyzeCommand(
 }
 
 
-int MainCmds::gtp(const vector<string>& args) {
+int MainCmds::gtp(const vector<string>& args, std::istream& s_in, std::ostream& s_out) {
   Board::initHash();
   ScoreValue::initTables();
   Rand seedRand;
@@ -1678,7 +1678,7 @@ int MainCmds::gtp(const vector<string>& args) {
 
   bool currentlyAnalyzing = false;
   string line;
-  while(getline(cin,line)) {
+  while(getline(s_in,line)) {
     //Parse command, extracting out the command itself, the arguments, and any GTP id number for the command.
     string command;
     vector<string> pieces;
@@ -1710,7 +1710,7 @@ int MainCmds::gtp(const vector<string>& args) {
       if(currentlyAnalyzing) {
         currentlyAnalyzing = false;
         engine->stopAndWait();
-        cout << endl;
+        s_out << endl;
       }
 
       if(line.length() == 0)
@@ -1729,7 +1729,7 @@ int MainCmds::gtp(const vector<string>& args) {
           id = Global::parseDigits(line,0,digitPrefixLen);
         }
         catch(const IOError& e) {
-          cout << "? GTP id '" << id << "' could not be parsed: " << e.what() << endl;
+          s_out << "? GTP id '" << id << "' could not be parsed: " << e.what() << endl;
           continue;
         }
         line = line.substr(digitPrefixLen);
@@ -1737,7 +1737,7 @@ int MainCmds::gtp(const vector<string>& args) {
 
       line = Global::trim(line);
       if(line.length() <= 0) {
-        cout << "? empty command" << endl;
+        s_out << "? empty command" << endl;
         continue;
       }
 
@@ -2405,7 +2405,7 @@ int MainCmds::gtp(const vector<string>& args) {
           allowResignation,resignThreshold,resignConsecTurns,resignMinScoreDifference,
           logSearchInfo,debug,playChosenMove,
           response,responseIsError,maybeStartPondering,
-          GTPEngine::AnalyzeArgs()
+          GTPEngine::AnalyzeArgs(), s_out
         );
       }
     }
@@ -2424,9 +2424,9 @@ int MainCmds::gtp(const vector<string>& args) {
 
         //Make sure the "equals" for GTP is printed out prior to the first analyze line, regardless of thread racing
         if(hasId)
-          cout << "=" << Global::intToString(id) << endl;
+          s_out << "=" << Global::intToString(id) << endl;
         else
-          cout << "=" << endl;
+          s_out << "=" << endl;
 
         engine->genMove(
           pla,
@@ -2435,16 +2435,16 @@ int MainCmds::gtp(const vector<string>& args) {
           allowResignation,resignThreshold,resignConsecTurns,resignMinScoreDifference,
           logSearchInfo,debug,playChosenMove,
           response,responseIsError,maybeStartPondering,
-          analyzeArgs
+          analyzeArgs, s_out
         );
         //And manually handle the result as well. In case of error, don't report any play.
         suppressResponse = true;
         if(!responseIsError) {
-          cout << response << endl;
-          cout << endl;
+          s_out << response << endl;
+          s_out << endl;
         }
         else {
-          cout << endl;
+          s_out << endl;
           if(!loggingToStderr)
             cerr << response << endl;
         }
@@ -2758,11 +2758,11 @@ int MainCmds::gtp(const vector<string>& args) {
       else {
         //Make sure the "equals" for GTP is printed out prior to the first analyze line, regardless of thread racing
         if(hasId)
-          cout << "=" << Global::intToString(id) << endl;
+          s_out << "=" << Global::intToString(id) << endl;
         else
-          cout << "=" << endl;
+          s_out << "=" << endl;
 
-        engine->analyze(pla, analyzeArgs);
+        engine->analyze(pla, analyzeArgs, s_out);
 
         //No response - currentlyAnalyzing will make sure we get a newline at the appropriate time, when stopped.
         suppressResponse = true;
@@ -2894,7 +2894,7 @@ int MainCmds::gtp(const vector<string>& args) {
             //Act of benchmarking will write to stdout with a newline at the end, so we just need one more newline ourselves
             //to complete GTP protocol.
             suppressResponse = true;
-            cout << endl;
+            s_out << endl;
           }
         }
       }
@@ -2923,8 +2923,8 @@ int MainCmds::gtp(const vector<string>& args) {
       response = "=" + response;
 
     if(!suppressResponse) {
-      cout << response << endl;
-      cout << endl;
+      s_out << response << endl;
+      s_out << endl;
     }
 
     if(logAllGTPCommunication)
@@ -2945,4 +2945,20 @@ int MainCmds::gtp(const vector<string>& args) {
 
   logger.write("All cleaned up, quitting");
   return 0;
+}
+
+int MainCmds::gtponport(const vector<string>& args) {
+  asio::io_service io_service;
+  asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), 5678);
+  asio::ip::tcp::acceptor acceptor(io_service, endpoint);
+  
+  while(true) {
+    //waitting for connection
+    asio::ip::tcp::iostream stream;
+    asio::ip::tcp::endpoint peer;
+    acceptor.accept(*stream.rdbuf(), peer);
+    std::string ip = peer.address().to_string();
+    stream.rdbuf()->set_option(asio::ip::tcp::socket::keep_alive(true));
+    MainCmds::gtp(args, stream, stream);
+  }
 }

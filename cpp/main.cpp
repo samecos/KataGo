@@ -78,7 +78,9 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
   else if(subcommand == "genconfig")
     return MainCmds::genconfig(subArgs,args[0]);
   else if(subcommand == "gtp")
-    return MainCmds::gtp(subArgs);
+    return MainCmds::gtp(subArgs,std::cin,std::cout);
+  else if(subcommand == "gtponport")
+    return MainCmds::gtponport(subArgs);  
   else if(subcommand == "tuner")
     return MainCmds::tuner(subArgs);
   else if(subcommand == "match")

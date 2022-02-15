@@ -7,7 +7,7 @@ namespace MainCmds {
   int evalsgf(const std::vector<std::string>& args);
   int gatekeeper(const std::vector<std::string>& args);
   int genconfig(const std::vector<std::string>& args, const std::string& firstCommand);
-  int gtp(const std::vector<std::string>& args);
+  int gtp(const std::vector<std::string>& args, std::istream& s_in, std::ostream& s_out);
   int tuner(const std::vector<std::string>& args);
   int match(const std::vector<std::string>& args);
   int matchauto(const std::vector<std::string>& args);
@@ -42,7 +42,7 @@ namespace MainCmds {
   int demoplay(const std::vector<std::string>& args);
   int printclockinfo(const std::vector<std::string>& args);
   int sampleinitializations(const std::vector<std::string>& args);
-
+  int gtponport(const std::vector<std::string>& args);
   int sandbox();
 }
 
