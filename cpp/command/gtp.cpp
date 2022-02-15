@@ -1493,13 +1493,79 @@ static GTPEngine::AnalyzeArgs parseAnalyzeCommand(
   return args;
 }
 
+struct outputParam {
+  outputParam(const bool m_logAllGTPCommunication,
+  const bool m_logSearchInfo,
+  const double m_searchFactorWhenWinning, 
+  const double m_searchFactorWhenWinningThreshold,
+  const bool m_preventEncore,
+  const enabled_t m_cleanupBeforePass,
+  const enabled_t m_friendlyPass,
+  const bool m_ogsChatToStderr,
+  const bool m_ponderingEnabled, 
+  const bool m_allowResignation,
+  const double m_resignThreshold, 
+  const int m_resignConsecTurns, 
+  const double m_resignMinScoreDifference,
+  bool& m_loggingToStderr, 
+  string& m_overrideVersion, 
+  Logger& m_logger, 
+  ConfigParser& m_cfg, 
+  GTPEngine* m_engine,
+  Rand& m_seedRand, 
+  bool& m_isForcingKomi, 
+  float& m_forcedKomi, 
+  SearchParams& m_initialParams,
+  Player& m_perspective):
+  logAllGTPCommunication(m_logAllGTPCommunication),
+  logSearchInfo(m_logSearchInfo),
+  searchFactorWhenWinning(m_searchFactorWhenWinning),
+  searchFactorWhenWinningThreshold(m_searchFactorWhenWinningThreshold),
+  preventEncore(m_preventEncore),
+  cleanupBeforePass(m_cleanupBeforePass),
+  friendlyPass(m_friendlyPass),
+  ogsChatToStderr(m_ogsChatToStderr),
+  ponderingEnabled(m_ponderingEnabled),
+  allowResignation(m_allowResignation),
+  resignThreshold(m_resignThreshold),
+  resignConsecTurns(m_resignConsecTurns),
+  resignMinScoreDifference(m_resignMinScoreDifference),
+  loggingToStderr(m_loggingToStderr),
+  overrideVersion(m_overrideVersion),
+  cfg(m_cfg),
+  engine(m_engine),
+  isForcingKomi(m_isForcingKomi),
+  forcedKomi(m_forcedKomi),
+  initialParams(m_initialParams),
+  perspective(m_perspective),
+  logger(m_logger),
+  seedRand(m_seedRand){}
+  const bool logAllGTPCommunication;
+  const bool logSearchInfo;
+  const double searchFactorWhenWinning; 
+  const double searchFactorWhenWinningThreshold;
+  const bool preventEncore;
+  const enabled_t cleanupBeforePass;
+  const enabled_t friendlyPass;
+  const bool ogsChatToStderr;
+  const bool ponderingEnabled; 
+  const bool allowResignation;
+  const double resignThreshold; 
+  const int resignConsecTurns; 
+  const double resignMinScoreDifference;
+  bool& loggingToStderr; 
+  string& overrideVersion; 
+  Logger& logger; 
+  ConfigParser& cfg; 
+  GTPEngine* engine;
+  Rand& seedRand; 
+  bool& isForcingKomi; 
+  float& forcedKomi; 
+  SearchParams& initialParams; 
+  Player& perspective;
+};
 
-bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, const bool logSearchInfo,
-                const double searchFactorWhenWinning, const double searchFactorWhenWinningThreshold,const bool preventEncore,
-                const enabled_t cleanupBeforePass, const enabled_t friendlyPass,const bool ogsChatToStderr,const bool ponderingEnabled, 
-                const bool allowResignation, const double resignThreshold, const int resignConsecTurns, const double resignMinScoreDifference,
-                bool& loggingToStderr, string& overrideVersion, Logger& logger, ConfigParser& cfg, GTPEngine* engine,
-                Rand& seedRand, bool& isForcingKomi, float& forcedKomi, SearchParams& initialParams, Player& perspective){
+bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger){
   bool currentlyAnalyzing = false;
   string line;
   while(getline(s_in,line)) {
@@ -1533,15 +1599,15 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       //Upon any input line at all, stop any analysis and output a newline
       if(currentlyAnalyzing) {
         currentlyAnalyzing = false;
-        engine->stopAndWait();
+        parameter.engine->stopAndWait();
         s_out << endl;
       }
 
       if(line.length() == 0)
         continue;
 
-      if(logAllGTPCommunication)
-        logger.write("Controller: " + line);
+      if(parameter.logAllGTPCommunication)
+        parameter.logger.write("Controller: " + line);
 
       //Parse id number of command, if present
       size_t digitPrefixLen = 0;
@@ -1589,8 +1655,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
     }
 
     else if(command == "version") {
-      if(overrideVersion.size() > 0)
-        response = overrideVersion;
+      if(parameter.overrideVersion.size() > 0)
+        response = parameter.overrideVersion;
       else
         response = Version::getKataGoVersion();
     }
@@ -1618,7 +1684,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
 
     else if(command == "quit") {
       shouldQuitAfterResponse = true;
-      logger.write("Quit requested by controller");
+      parameter.logger.write("Quit requested by controller");
     }
 
     else if(command == "boardsize" || command == "rectangular_boardsize") {
@@ -1657,12 +1723,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = Global::strprintf("unacceptable size (Board::MAX_LEN is %d, consider increasing and recompiling)",(int)Board::MAX_LEN);
       }
       else {
-        engine->setOrResetBoardSize(cfg,logger,seedRand,newXSize,newYSize,loggingToStderr);
+        parameter.engine->setOrResetBoardSize(parameter.cfg,parameter.logger,parameter.seedRand,newXSize,newYSize,parameter.loggingToStderr);
       }
     }
 
     else if(command == "clear_board") {
-      engine->clearBoard();
+      parameter.engine->clearBoard();
     }
 
     else if(command == "komi") {
@@ -1681,16 +1747,16 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = "komi must be an integer or half-integer";
       }
       else {
-        if(isForcingKomi)
-          newKomi = forcedKomi;
-        engine->updateKomiIfNew(newKomi);
+        if(parameter.isForcingKomi)
+          newKomi = parameter.forcedKomi;
+        parameter.engine->updateKomiIfNew(newKomi);
         //In case the controller tells us komi every move, restart pondering afterward.
-        maybeStartPondering = engine->bot->getRootHist().moveHistory.size() > 0;
+        maybeStartPondering = parameter.engine->bot->getRootHist().moveHistory.size() > 0;
       }
     }
 
     else if(command == "get_komi") {
-      response = Global::doubleToString(engine->getCurrentRules().komi);
+      response = Global::doubleToString(parameter.engine->getCurrentRules().komi);
     }
 
     else if(command == "kata-get-rules") {
@@ -1698,7 +1764,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = "Expected no arguments for kata-get-rules but got '" + Global::concat(pieces," ") + "'";
       }
       else {
-        response = engine->getCurrentRules().toJsonStringNoKomi();
+        response = parameter.engine->getCurrentRules().toJsonStringNoKomi();
       }
     }
 
@@ -1707,7 +1773,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       bool parseSuccess = false;
       Rules newRules;
       try {
-        newRules = Rules::parseRulesWithoutKomi(rest,engine->getCurrentRules().komi);
+        newRules = Rules::parseRulesWithoutKomi(rest,parameter.engine->getCurrentRules().komi);
         parseSuccess = true;
       }
       catch(const StringError& err) {
@@ -1716,13 +1782,13 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       }
       if(parseSuccess) {
         string error;
-        bool suc = engine->setRulesNotIncludingKomi(newRules,error);
+        bool suc = parameter.engine->setRulesNotIncludingKomi(newRules,error);
         if(!suc) {
           responseIsError = true;
           response = error;
         }
-        logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
-        if(!loggingToStderr)
+        parameter.logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
+        if(!parameter.loggingToStderr)
           cerr << "Changed rules to " + newRules.toStringNoKomiMaybeNice() << endl;
       }
     }
@@ -1734,7 +1800,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       }
       else {
         bool parseSuccess = false;
-        Rules currentRules = engine->getCurrentRules();
+        Rules currentRules = parameter.engine->getCurrentRules();
         Rules newRules;
         try {
           newRules = Rules::updateRules(pieces[0], pieces[1], currentRules);
@@ -1746,13 +1812,13 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         }
         if(parseSuccess) {
           string error;
-          bool suc = engine->setRulesNotIncludingKomi(newRules,error);
+          bool suc = parameter.engine->setRulesNotIncludingKomi(newRules,error);
           if(!suc) {
             responseIsError = true;
             response = error;
           }
-          logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
-          if(!loggingToStderr)
+          parameter.logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
+          if(!parameter.loggingToStderr)
             cerr << "Changed rules to " + newRules.toStringNoKomiMaybeNice() << endl;
         }
       }
@@ -1768,19 +1834,19 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       else {
         string s = Global::toLower(Global::trim(pieces[0]));
         if(s == "chinese") {
-          newRules = Rules::parseRulesWithoutKomi("chinese-kgs",engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("chinese-kgs",parameter.engine->getCurrentRules().komi);
           parseSuccess = true;
         }
         else if(s == "aga") {
-          newRules = Rules::parseRulesWithoutKomi("aga",engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("aga",parameter.engine->getCurrentRules().komi);
           parseSuccess = true;
         }
         else if(s == "new_zealand") {
-          newRules = Rules::parseRulesWithoutKomi("new_zealand",engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("new_zealand",parameter.engine->getCurrentRules().komi);
           parseSuccess = true;
         }
         else if(s == "japanese") {
-          newRules = Rules::parseRulesWithoutKomi("japanese",engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("japanese",parameter.engine->getCurrentRules().komi);
           parseSuccess = true;
         }
         else {
@@ -1790,13 +1856,13 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       }
       if(parseSuccess) {
         string error;
-        bool suc = engine->setRulesNotIncludingKomi(newRules,error);
+        bool suc = parameter.engine->setRulesNotIncludingKomi(newRules,error);
         if(!suc) {
           responseIsError = true;
           response = error;
         }
-        logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
-        if(!loggingToStderr)
+        parameter.logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
+        if(!parameter.loggingToStderr)
           cerr << "Changed rules to " + newRules.toStringNoKomiMaybeNice() << endl;
       }
     }
@@ -1812,15 +1878,15 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = "Expected one arguments for kata-get-param but got '" + Global::concat(pieces," ") + "'";
       }
       else {
-        SearchParams params = engine->getParams();
+        SearchParams params = parameter.engine->getParams();
         if(pieces[0] == "playoutDoublingAdvantage") {
-          response = Global::doubleToString(engine->staticPlayoutDoublingAdvantage);
+          response = Global::doubleToString(parameter.engine->staticPlayoutDoublingAdvantage);
         }
         else if(pieces[0] == "rootPolicyTemperature") {
           response = Global::doubleToString(params.rootPolicyTemperature);
         }
         else if(pieces[0] == "analysisWideRootNoise") {
-          response = Global::doubleToString(engine->analysisWideRootNoise);
+          response = Global::doubleToString(parameter.engine->analysisWideRootNoise);
         }
         else {
           responseIsError = true;
@@ -1839,7 +1905,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         double d;
         if(pieces[0] == "playoutDoublingAdvantage") {
           if(Global::tryStringToDouble(pieces[1],d) && d >= -3.0 && d <= 3.0)
-            engine->setStaticPlayoutDoublingAdvantage(d);
+            parameter.engine->setStaticPlayoutDoublingAdvantage(d);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be float from -3.0 to 3.0";
@@ -1847,7 +1913,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         }
         else if(pieces[0] == "rootPolicyTemperature") {
           if(Global::tryStringToDouble(pieces[1],d) && d >= 0.01 && d <= 100.0)
-            engine->setRootPolicyTemperature(d);
+            parameter.engine->setRootPolicyTemperature(d);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be float from 0.01 to 100.0";
@@ -1855,7 +1921,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         }
         else if(pieces[0] == "analysisWideRootNoise") {
           if(Global::tryStringToDouble(pieces[1],d) && d >= 0.0 && d <= 5.0)
-            engine->setAnalysisWideRootNoise(d);
+            parameter.engine->setAnalysisWideRootNoise(d);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be float from 0.0 to 2.0";
@@ -1863,7 +1929,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         }
         else if(pieces[0] == "numSearchThreads") {
           if(Global::tryStringToInt(pieces[1],i) && i >= 1 && i <= 1024)
-            engine->setNumSearchThreads(i);
+            parameter.engine->setNumSearchThreads(i);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be integer from 1 to 1024";
@@ -1900,8 +1966,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
           tc = TimeControls::absoluteTime(mainTime);
         else
           tc = TimeControls::canadianOrByoYomiTime(mainTime,byoYomiTime,1,byoYomiStones);
-        engine->bTimeControls = tc;
-        engine->wTimeControls = tc;
+        parameter.engine->bTimeControls = tc;
+        parameter.engine->wTimeControls = tc;
       }
     }
 
@@ -1931,8 +1997,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         string what = Global::toLower(Global::trim(pieces[0]));
         if(what == "none") {
           TimeControls tc = TimeControls();
-          engine->bTimeControls = tc;
-          engine->wTimeControls = tc;
+          parameter.engine->bTimeControls = tc;
+          parameter.engine->wTimeControls = tc;
         }
         else if(what == "absolute") {
           double mainTime;
@@ -1948,8 +2014,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             response = e.what();
           }
           if(success) {
-            engine->bTimeControls = tc;
-            engine->wTimeControls = tc;
+            parameter.engine->bTimeControls = tc;
+            parameter.engine->wTimeControls = tc;
           }
         }
         else if(what == "canadian") {
@@ -1976,8 +2042,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             response = e.what();
           }
           if(success) {
-            engine->bTimeControls = tc;
-            engine->wTimeControls = tc;
+            parameter.engine->bTimeControls = tc;
+            parameter.engine->wTimeControls = tc;
           }
         }
         else if(what == "byoyomi") {
@@ -2001,8 +2067,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             response = e.what();
           }
           if(success) {
-            engine->bTimeControls = tc;
-            engine->wTimeControls = tc;
+            parameter.engine->bTimeControls = tc;
+            parameter.engine->wTimeControls = tc;
           }
         }
         else if(what == "fischer" && command == "kata-time_settings") {
@@ -2021,8 +2087,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             response = e.what();
           }
           if(success) {
-            engine->bTimeControls = tc;
-            engine->wTimeControls = tc;
+            parameter.engine->bTimeControls = tc;
+            parameter.engine->wTimeControls = tc;
           }
         }
         else if(what == "fischer-capped" && command == "kata-time_settings") {
@@ -2049,8 +2115,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             response = e.what();
           }
           if(success) {
-            engine->bTimeControls = tc;
-            engine->wTimeControls = tc;
+            parameter.engine->bTimeControls = tc;
+            parameter.engine->wTimeControls = tc;
           }
         }
         else {
@@ -2085,7 +2151,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = "invalid stones";
       }
       else {
-        TimeControls tc = pla == P_BLACK ? engine->bTimeControls : engine->wTimeControls;
+        TimeControls tc = pla == P_BLACK ? parameter.engine->bTimeControls : parameter.engine->wTimeControls;
         if(stones > 0 && tc.originalNumPeriods <= 0) {
           responseIsError = true;
           response = "stones left in period is > 0 but the time control used does not have any overtime periods";
@@ -2118,20 +2184,20 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             }
           }
           if(pla == P_BLACK)
-            engine->bTimeControls = tc;
+            parameter.engine->bTimeControls = tc;
           else
-            engine->wTimeControls = tc;
+            parameter.engine->wTimeControls = tc;
 
           //In case the controller tells us komi every move, restart pondering afterward.
-          maybeStartPondering = engine->bot->getRootHist().moveHistory.size() > 0;
+          maybeStartPondering = parameter.engine->bot->getRootHist().moveHistory.size() > 0;
         }
       }
     }
 
     else if(command == "kata-debug-print-tc") {
-      response += "Black "+ engine->bTimeControls.toDebugString(engine->bot->getRootBoard(),engine->bot->getRootHist(),initialParams.lagBuffer);
+      response += "Black "+ parameter.engine->bTimeControls.toDebugString(parameter.engine->bot->getRootBoard(),parameter.engine->bot->getRootHist(),parameter.initialParams.lagBuffer);
       response += "\n";
-      response += "White "+ engine->wTimeControls.toDebugString(engine->bot->getRootBoard(),engine->bot->getRootHist(),initialParams.lagBuffer);
+      response += "White "+ parameter.engine->wTimeControls.toDebugString(parameter.engine->bot->getRootBoard(),parameter.engine->bot->getRootHist(),parameter.initialParams.lagBuffer);
     }
 
     else if(command == "play") {
@@ -2145,12 +2211,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         responseIsError = true;
         response = "Could not parse color: '" + pieces[0] + "'";
       }
-      else if(!tryParseLoc(pieces[1],engine->bot->getRootBoard(),loc)) {
+      else if(!tryParseLoc(pieces[1],parameter.engine->bot->getRootBoard(),loc)) {
         responseIsError = true;
         response = "Could not parse vertex: '" + pieces[1] + "'";
       }
       else {
-        bool suc = engine->play(loc,pla);
+        bool suc = parameter.engine->play(loc,pla);
         if(!suc) {
           responseIsError = true;
           response = "illegal move";
@@ -2175,7 +2241,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             response += "could not parse color: '" + pieces[0] + "'";
             break;
           }
-          else if(!tryParseLoc(pieces[i+1],engine->bot->getRootBoard(),loc)) {
+          else if(!tryParseLoc(pieces[i+1],parameter.engine->bot->getRootBoard(),loc)) {
             responseIsError = true;
             response = "Expected a space-separated sequence of <COLOR> <VERTEX> pairs but got '" + Global::concat(pieces," ") + "': ";
             response += "Could not parse vertex: '" + pieces[1] + "'";
@@ -2190,7 +2256,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
           initialStones.push_back(Move(loc,pla));
         }
         if(!responseIsError) {
-          bool suc = engine->setPosition(initialStones);
+          bool suc = parameter.engine->setPosition(initialStones);
           if(!suc) {
             responseIsError = true;
             response = "Illegal stone placements - overlapping stones or stones with no liberties?";
@@ -2201,7 +2267,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
     }
 
     else if(command == "undo") {
-      bool suc = engine->undo();
+      bool suc = parameter.engine->undo();
       if(!suc) {
         responseIsError = true;
         response = "cannot undo";
@@ -2222,12 +2288,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         bool debug = command == "genmove_debug" || command == "search_debug";
         bool playChosenMove = command != "search_debug";
 
-        engine->genMove(
+        parameter.engine->genMove(
           pla,
-          logger,searchFactorWhenWinningThreshold,searchFactorWhenWinning,
-          cleanupBeforePass,friendlyPass,ogsChatToStderr,
-          allowResignation,resignThreshold,resignConsecTurns,resignMinScoreDifference,
-          logSearchInfo,debug,playChosenMove,
+          parameter.logger,parameter.searchFactorWhenWinningThreshold,parameter.searchFactorWhenWinning,
+          parameter.cleanupBeforePass,parameter.friendlyPass,parameter.ogsChatToStderr,
+          parameter.allowResignation,parameter.resignThreshold,parameter.resignConsecTurns,parameter.resignMinScoreDifference,
+          parameter.logSearchInfo,debug,playChosenMove,
           response,responseIsError,maybeStartPondering,
           GTPEngine::AnalyzeArgs(), s_out
         );
@@ -2235,9 +2301,9 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
     }
 
     else if(command == "genmove_analyze" || command == "lz-genmove_analyze" || command == "kata-genmove_analyze") {
-      Player pla = engine->bot->getRootPla();
+      Player pla = parameter.engine->bot->getRootPla();
       bool parseFailed = false;
-      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, engine);
+      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, parameter.engine);
       if(parseFailed) {
         responseIsError = true;
         response = "Could not parse genmove_analyze arguments or arguments out of range: '" + Global::concat(pieces," ") + "'";
@@ -2252,12 +2318,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         else
           s_out << "=" << endl;
 
-        engine->genMove(
+        parameter.engine->genMove(
           pla,
-          logger,searchFactorWhenWinningThreshold,searchFactorWhenWinning,
-          cleanupBeforePass,friendlyPass,ogsChatToStderr,
-          allowResignation,resignThreshold,resignConsecTurns,resignMinScoreDifference,
-          logSearchInfo,debug,playChosenMove,
+          parameter.logger,parameter.searchFactorWhenWinningThreshold,parameter.searchFactorWhenWinning,
+          parameter.cleanupBeforePass,parameter.friendlyPass,parameter.ogsChatToStderr,
+          parameter.allowResignation,parameter.resignThreshold,parameter.resignConsecTurns,parameter.resignMinScoreDifference,
+          parameter.logSearchInfo,debug,playChosenMove,
           response,responseIsError,maybeStartPondering,
           analyzeArgs, s_out
         );
@@ -2269,18 +2335,18 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         }
         else {
           s_out << endl;
-          if(!loggingToStderr)
+          if(!parameter.loggingToStderr)
             cerr << response << endl;
         }
       }
     }
 
     else if(command == "clear_cache") {
-      engine->clearCache();
+      parameter.engine->clearCache();
     }
     else if(command == "showboard") {
       ostringstream sout;
-      engine->bot->getRootHist().printBasicInfo(sout, engine->bot->getRootBoard());
+      parameter.engine->bot->getRootHist().printBasicInfo(sout, parameter.engine->bot->getRootBoard());
       response = Global::trim(filterDoubleNewlines(sout.str()));
     }
 
@@ -2298,12 +2364,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         responseIsError = true;
         response = "Number of handicap stones less than 2: '" + pieces[0] + "'";
       }
-      else if(!engine->bot->getRootBoard().isEmpty()) {
+      else if(!parameter.engine->bot->getRootBoard().isEmpty()) {
         responseIsError = true;
         response = "Board is not empty";
       }
       else {
-        engine->placeFixedHandicap(n,response,responseIsError);
+        parameter.engine->placeFixedHandicap(n,response,responseIsError);
       }
     }
 
@@ -2321,24 +2387,24 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         responseIsError = true;
         response = "Number of handicap stones less than 2: '" + pieces[0] + "'";
       }
-      else if(!engine->bot->getRootBoard().isEmpty()) {
+      else if(!parameter.engine->bot->getRootBoard().isEmpty()) {
         responseIsError = true;
         response = "Board is not empty";
       }
       else {
-        engine->placeFreeHandicap(n,response,responseIsError,seedRand);
+        parameter.engine->placeFreeHandicap(n,response,responseIsError,parameter.seedRand);
       }
     }
 
     else if(command == "set_free_handicap") {
-      if(!engine->bot->getRootBoard().isEmpty()) {
+      if(!parameter.engine->bot->getRootBoard().isEmpty()) {
         responseIsError = true;
         response = "Board is not empty";
       }
       else {
         vector<Loc> locs;
-        int xSize = engine->bot->getRootBoard().x_size;
-        int ySize = engine->bot->getRootBoard().y_size;
+        int xSize = parameter.engine->bot->getRootBoard().x_size;
+        int ySize = parameter.engine->bot->getRootBoard().y_size;
         Board board(xSize,ySize);
         for(int i = 0; i<pieces.size(); i++) {
           Loc loc;
@@ -2353,19 +2419,19 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
           board.setStone(locs[i],P_BLACK);
 
         Player pla = P_WHITE;
-        BoardHistory hist(board,pla,engine->getCurrentRules(),0);
+        BoardHistory hist(board,pla,parameter.engine->getCurrentRules(),0);
         hist.setInitialTurnNumber(board.numStonesOnBoard()); //Should give more accurate temperaure and time control behavior
         vector<Move> newMoveHistory;
-        engine->setPositionAndRules(pla,board,hist,board,pla,newMoveHistory);
+        parameter.engine->setPositionAndRules(pla,board,hist,board,pla,newMoveHistory);
       }
     }
 
     else if(command == "final_score") {
-      engine->stopAndWait();
+      parameter.engine->stopAndWait();
 
       Player winner = C_EMPTY;
       double finalWhiteMinusBlackScore = 0.0;
-      engine->computeAnticipatedWinnerAndScore(winner,finalWhiteMinusBlackScore);
+      parameter.engine->computeAnticipatedWinnerAndScore(winner,finalWhiteMinusBlackScore);
 
       if(winner == C_EMPTY)
         response = "0";
@@ -2397,8 +2463,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         }
 
         if(statusMode < 3) {
-          vector<bool> isAlive = engine->computeAnticipatedStatuses();
-          Board board = engine->bot->getRootBoard();
+          vector<bool> isAlive = parameter.engine->computeAnticipatedStatuses();
+          Board board = parameter.engine->bot->getRootBoard();
           vector<Loc> locsToReport;
 
           if(statusMode == 0) {
@@ -2472,37 +2538,36 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
               throw StringError("Sgf has too many moves");
             if(!moveNumberSpecified || moveNumber > sgf->moves.size())
               moveNumber = (int)sgf->moves.size();
-
             sgfRules = sgf->getRulesOrWarn(
-              engine->getCurrentRules(), //Use current rules as default
+              parameter.engine->getCurrentRules(), //Use current rules as default
               [&logger](const string& msg) { logger.write(msg); cerr << msg << endl; }
             );
-            if(engine->nnEval != NULL) {
+            if(parameter.engine->nnEval != NULL) {
               bool rulesWereSupported;
-              Rules supportedRules = engine->nnEval->getSupportedRules(sgfRules,rulesWereSupported);
+              Rules supportedRules = parameter.engine->nnEval->getSupportedRules(sgfRules,rulesWereSupported);
               if(!rulesWereSupported) {
                 ostringstream out;
                 out << "WARNING: Rules " << sgfRules.toJsonStringNoKomi()
                     << " from sgf not supported by neural net, using " << supportedRules.toJsonStringNoKomi() << " instead";
-                logger.write(out.str());
-                if(!loggingToStderr)
+                parameter.logger.write(out.str());
+                if(!parameter.loggingToStderr)
                   cerr << out.str() << endl;
                 sgfRules = supportedRules;
               }
             }
 
-            if(isForcingKomi)
-              sgfRules.komi = forcedKomi;
+            if(parameter.isForcingKomi)
+              sgfRules.komi = parameter.forcedKomi;
 
             {
               //See if the rules differ, IGNORING komi differences
-              Rules currentRules = engine->getCurrentRules();
+              Rules currentRules = parameter.engine->getCurrentRules();
               currentRules.komi = sgfRules.komi;
               if(sgfRules != currentRules) {
                 ostringstream out;
                 out << "Changing rules to " << sgfRules.toJsonStringNoKomi();
-                logger.write(out.str());
-                if(!loggingToStderr)
+                parameter.logger.write(out.str());
+                if(!parameter.loggingToStderr)
                   cerr << out.str() << endl;
               }
             }
@@ -2512,7 +2577,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             sgfBoard = sgfInitialBoard;
             sgfNextPla = sgfInitialNextPla;
             sgfHist = sgfInitialHist;
-            sgf->playMovesTolerant(sgfBoard,sgfNextPla,sgfHist,moveNumber,preventEncore);
+            sgf->playMovesTolerant(sgfBoard,sgfNextPla,sgfHist,moveNumber,parameter.preventEncore);
 
             delete sgf;
             sgf = NULL;
@@ -2532,15 +2597,15 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
           }
 
           if(sgfParseSuccess) {
-            if(sgfRules.komi != engine->getCurrentRules().komi) {
+            if(sgfRules.komi != parameter.engine->getCurrentRules().komi) {
               ostringstream out;
               out << "Changing komi to " << sgfRules.komi;
-              logger.write(out.str());
-              if(!loggingToStderr)
+              parameter.logger.write(out.str());
+              if(!parameter.loggingToStderr)
                 cerr << out.str() << endl;
             }
-            engine->setOrResetBoardSize(cfg,logger,seedRand,sgfBoard.x_size,sgfBoard.y_size,loggingToStderr);
-            engine->setPositionAndRules(sgfNextPla, sgfBoard, sgfHist, sgfInitialBoard, sgfInitialNextPla, sgfHist.moveHistory);
+            parameter.engine->setOrResetBoardSize(parameter.cfg,parameter.logger,parameter.seedRand,sgfBoard.x_size,sgfBoard.y_size,parameter.loggingToStderr);
+            parameter.engine->setPositionAndRules(sgfNextPla, sgfBoard, sgfHist, sgfInitialBoard, sgfInitialNextPla, sgfHist.moveHistory);
           }
         }
       }
@@ -2553,13 +2618,13 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       }
       else if(pieces.size() == 0 || pieces[0] == "-") {
         ostringstream out;
-        WriteSgf::writeSgf(out,"","",engine->bot->getRootHist(),NULL,true,false);
+        WriteSgf::writeSgf(out,"","",parameter.engine->bot->getRootHist(),NULL,true,false);
         response = out.str();
       }
       else {
         ofstream out;
         if(FileUtils::tryOpen(out,pieces[0])) {
-          WriteSgf::writeSgf(out,"","",engine->bot->getRootHist(),NULL,true,false);
+          WriteSgf::writeSgf(out,"","",parameter.engine->bot->getRootHist(),NULL,true,false);
           out.close();
           response = "";
         }
@@ -2571,9 +2636,9 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
     }
 
     else if(command == "analyze" || command == "lz-analyze" || command == "kata-analyze") {
-      Player pla = engine->bot->getRootPla();
+      Player pla = parameter.engine->bot->getRootPla();
       bool parseFailed = false;
-      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, engine);
+      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, parameter.engine);
 
       if(parseFailed) {
         responseIsError = true;
@@ -2586,7 +2651,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         else
           s_out << "=" << endl;
 
-        engine->analyze(pla, analyzeArgs, s_out);
+        parameter.engine->analyze(pla, analyzeArgs, s_out);
 
         //No response - currentlyAnalyzing will make sure we get a newline at the appropriate time, when stopped.
         suppressResponse = true;
@@ -2610,7 +2675,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = "Expected one argument 'all' or symmetry index [0-7] for kata-raw-nn but got '" + Global::concat(pieces," ") + "'";
       }
       else {
-        response = engine->rawNN(whichSymmetry);
+        response = parameter.engine->rawNN(whichSymmetry);
       }
     }
 
@@ -2625,7 +2690,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       }
       try {
         if(printBranch.length() > 0)
-          options = options.onlyBranch(engine->bot->getRootBoard(),printBranch);
+          options = options.onlyBranch(parameter.engine->bot->getRootBoard(),printBranch);
       }
       catch(const StringError& e) {
         (void)e;
@@ -2633,12 +2698,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         response = "Invalid move sequence";
       }
       if(!responseIsError) {
-        Search* search = engine->bot->getSearchStopAndWait();
+        Search* search = parameter.engine->bot->getSearchStopAndWait();
         ostringstream sout;
 
-        Player pla = engine->bot->getRootPla();
-        Board board = engine->bot->getRootBoard();
-        BoardHistory hist = engine->bot->getRootHist();
+        Player pla = parameter.engine->bot->getRootPla();
+        Board board = parameter.engine->bot->getRootBoard();
+        BoardHistory hist = parameter.engine->bot->getRootHist();
         bool allLegal = true;
         for(Loc loc: options.branch_) {
           bool suc = hist.makeBoardMoveTolerant(board, loc, pla, false);
@@ -2651,12 +2716,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
         if(allLegal) {
           Board::printBoard(sout, board, Board::NULL_LOC, &hist.moveHistory);
         }
-        search->printTree(sout, search->rootNode, options, perspective);
+        search->printTree(sout, search->rootNode, options, parameter.perspective);
         response = filterDoubleNewlines(sout.str());
       }
     }
     else if(command == "cputime" || command == "gomill-cpu_time") {
-      response = Global::doubleToString(engine->genmoveTimeSum);
+      response = Global::doubleToString(parameter.engine->genmoveTimeSum);
     }
 
     else if(command == "benchmark") {
@@ -2676,10 +2741,10 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       }
 
       if(parsed) {
-        engine->stopAndWait();
+        parameter.engine->stopAndWait();
 
-        int boardSizeX = engine->bot->getRootBoard().x_size;
-        int boardSizeY = engine->bot->getRootBoard().y_size;
+        int boardSizeX = parameter.engine->bot->getRootBoard().x_size;
+        int boardSizeY = parameter.engine->bot->getRootBoard().y_size;
         if(boardSizeX != boardSizeY) {
           responseIsError = true;
           response =
@@ -2700,7 +2765,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
             const PlayUtils::BenchmarkResults* baseline = NULL;
             const double secondsPerGameMove = 1.0;
             const bool printElo = false;
-            SearchParams params = engine->getParams();
+            SearchParams params = parameter.engine->getParams();
             params.maxTime = 1.0e20;
             params.maxPlayouts = ((int64_t)1) << 50;
             params.maxVisits = numVisits;
@@ -2708,7 +2773,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
               params,
               sgf,
               10,
-              engine->nnEval,
+              parameter.engine->nnEval,
               baseline,
               secondsPerGameMove,
               printElo
@@ -2726,7 +2791,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
 
     else if(command == "stop") {
       //Stop any ongoing ponder or analysis
-      engine->stopAndWait();
+      parameter.engine->stopAndWait();
     }
 
     else {
@@ -2748,91 +2813,19 @@ bool GTPLoop(istream& s_in, ostream& s_out,const bool logAllGTPCommunication, co
       s_out << response << endl;
       s_out << endl;
     }
-    if(logAllGTPCommunication)
-      logger.write(response);
+    if(parameter.logAllGTPCommunication)
+      parameter.logger.write(response);
 
     if(shouldQuitAfterResponse){
       return true;
     }
       
 
-    if(maybeStartPondering && ponderingEnabled)
-      engine->ponder();
+    if(maybeStartPondering && parameter.ponderingEnabled)
+      parameter.engine->ponder();
   }
   
 }
-struct outputParam {
-  outputParam(const bool m_logAllGTPCommunication,
-  const bool m_logSearchInfo,
-  const double m_searchFactorWhenWinning, 
-  const double m_searchFactorWhenWinningThreshold,
-  const bool m_preventEncore,
-  const enabled_t m_cleanupBeforePass,
-  const enabled_t m_friendlyPass,
-  const bool m_ogsChatToStderr,
-  const bool m_ponderingEnabled, 
-  const bool m_allowResignation,
-  const double m_resignThreshold, 
-  const int m_resignConsecTurns, 
-  const double m_resignMinScoreDifference,
-  bool m_loggingToStderr, 
-  string m_overrideVersion, 
-  Logger& m_logger, 
-  ConfigParser m_cfg, 
-  GTPEngine* m_engine,
-  Rand& m_seedRand, 
-  bool m_isForcingKomi, 
-  float m_forcedKomi, 
-  SearchParams m_initialParams,
-  Player m_perspective):
-  logAllGTPCommunication(m_logAllGTPCommunication),
-  logSearchInfo(m_logSearchInfo),
-  searchFactorWhenWinning(m_searchFactorWhenWinning),
-  searchFactorWhenWinningThreshold(m_searchFactorWhenWinningThreshold),
-  preventEncore(m_preventEncore),
-  cleanupBeforePass(m_cleanupBeforePass),
-  friendlyPass(m_friendlyPass),
-  ogsChatToStderr(m_ogsChatToStderr),
-  ponderingEnabled(m_ponderingEnabled),
-  allowResignation(m_allowResignation),
-  resignThreshold(m_resignThreshold),
-  resignConsecTurns(m_resignConsecTurns),
-  resignMinScoreDifference(m_resignMinScoreDifference),
-  loggingToStderr(m_loggingToStderr),
-  overrideVersion(m_overrideVersion),
-  cfg(m_cfg),
-  engine(m_engine),
-  isForcingKomi(m_isForcingKomi),
-  forcedKomi(m_forcedKomi),
-  initialParams(m_initialParams),
-  perspective(m_perspective),
-  logger(m_logger),
-  seedRand(m_seedRand){}
-
-  const bool logAllGTPCommunication;
-  const bool logSearchInfo;
-  const double searchFactorWhenWinning; 
-  const double searchFactorWhenWinningThreshold;
-  const bool preventEncore;
-  const enabled_t cleanupBeforePass;
-  const enabled_t friendlyPass;
-  const bool ogsChatToStderr;
-  const bool ponderingEnabled; 
-  const bool allowResignation;
-  const double resignThreshold; 
-  const int resignConsecTurns; 
-  const double resignMinScoreDifference;
-  bool loggingToStderr; 
-  string overrideVersion; 
-  Logger& logger; 
-  ConfigParser cfg; 
-  GTPEngine* engine;
-  Rand& seedRand; 
-  bool isForcingKomi; 
-  float forcedKomi; 
-  SearchParams initialParams; 
-  Player perspective;
-};
 
 outputParam GTPReady(const vector<string>& args) {
   Board::initHash();
@@ -3027,10 +3020,7 @@ outputParam GTPReady(const vector<string>& args) {
 int MainCmds::gtp(const vector<string>& args, std::istream& s_in, std::ostream& s_out) {
   outputParam result = GTPReady(args);
 
-  GTPLoop(s_in, s_out,result.logAllGTPCommunication, result.logSearchInfo, result.searchFactorWhenWinning, result.searchFactorWhenWinningThreshold,
-          result.preventEncore, result.cleanupBeforePass, result.friendlyPass, result.ogsChatToStderr, result.ponderingEnabled, result.allowResignation, result.resignThreshold, 
-          result.resignConsecTurns, result.resignMinScoreDifference, result.loggingToStderr, result.overrideVersion, result.logger, result.cfg, result.engine,
-          result.seedRand, result.isForcingKomi, result.forcedKomi, result.initialParams, result.perspective);
+  GTPLoop(s_in, s_out,result, result.logger);
   delete result.engine;
   result.engine = NULL;
   NeuralNet::globalCleanup();
@@ -3051,10 +3041,7 @@ int MainCmds::gtponport(const vector<string>& args) {
     acceptor.accept(*stream.rdbuf(), peer);
     std::string ip = peer.address().to_string();
     stream.rdbuf()->set_option(asio::ip::tcp::socket::keep_alive(true));
-    bool shouldQuitAfterResponse = GTPLoop(stream, stream,result.logAllGTPCommunication, result.logSearchInfo, result.searchFactorWhenWinning, result.searchFactorWhenWinningThreshold,
-          result.preventEncore, result.cleanupBeforePass, result.friendlyPass, result.ogsChatToStderr, result.ponderingEnabled, result.allowResignation, result.resignThreshold, 
-          result.resignConsecTurns, result.resignMinScoreDifference, result.loggingToStderr, result.overrideVersion, result.logger, result.cfg, result.engine,
-          result.seedRand, result.isForcingKomi, result.forcedKomi, result.initialParams, result.perspective);
+    bool shouldQuitAfterResponse = GTPLoop(stream, stream,result, result.logger);
     if(shouldQuitAfterResponse){
       break;
     }
