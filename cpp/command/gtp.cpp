@@ -1508,15 +1508,14 @@ struct outputParam {
   const int m_resignConsecTurns, 
   const double m_resignMinScoreDifference,
   bool& m_loggingToStderr, 
-  string& m_overrideVersion, 
-  Logger& m_logger, 
-  ConfigParser& m_cfg, 
-  GTPEngine* m_engine,
-  Rand& m_seedRand, 
-  bool& m_isForcingKomi, 
-  float& m_forcedKomi, 
-  SearchParams& m_initialParams,
-  Player& m_perspective):
+  string m_overrideVersion, 
+  ConfigParser* m_cfg, 
+  GTPEngine** m_engine,
+  Rand* m_seedRand, 
+  bool m_isForcingKomi, 
+  float m_forcedKomi, 
+  SearchParams* m_initialParams,
+  Player m_perspective):
   logAllGTPCommunication(m_logAllGTPCommunication),
   logSearchInfo(m_logSearchInfo),
   searchFactorWhenWinning(m_searchFactorWhenWinning),
@@ -1538,7 +1537,6 @@ struct outputParam {
   forcedKomi(m_forcedKomi),
   initialParams(m_initialParams),
   perspective(m_perspective),
-  logger(m_logger),
   seedRand(m_seedRand){}
   const bool logAllGTPCommunication;
   const bool logSearchInfo;
@@ -1553,16 +1551,15 @@ struct outputParam {
   const double resignThreshold; 
   const int resignConsecTurns; 
   const double resignMinScoreDifference;
-  bool& loggingToStderr; 
-  string& overrideVersion; 
-  Logger& logger; 
-  ConfigParser& cfg; 
-  GTPEngine* engine;
-  Rand& seedRand; 
-  bool& isForcingKomi; 
-  float& forcedKomi; 
-  SearchParams& initialParams; 
-  Player& perspective;
+  bool loggingToStderr; 
+  string overrideVersion; 
+  ConfigParser* cfg; 
+  GTPEngine** engine;
+  Rand* seedRand; 
+  bool isForcingKomi; 
+  float forcedKomi; 
+  SearchParams* initialParams; 
+  Player perspective;
 };
 
 bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger){
@@ -1599,7 +1596,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       //Upon any input line at all, stop any analysis and output a newline
       if(currentlyAnalyzing) {
         currentlyAnalyzing = false;
-        parameter.engine->stopAndWait();
+        (*(parameter.engine))->stopAndWait();
         s_out << endl;
       }
 
@@ -1607,7 +1604,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         continue;
 
       if(parameter.logAllGTPCommunication)
-        parameter.logger.write("Controller: " + line);
+        logger.write("Controller: " + line);
 
       //Parse id number of command, if present
       size_t digitPrefixLen = 0;
@@ -1684,7 +1681,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
 
     else if(command == "quit") {
       shouldQuitAfterResponse = true;
-      parameter.logger.write("Quit requested by controller");
+      logger.write("Quit requested by controller");
     }
 
     else if(command == "boardsize" || command == "rectangular_boardsize") {
@@ -1723,12 +1720,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         response = Global::strprintf("unacceptable size (Board::MAX_LEN is %d, consider increasing and recompiling)",(int)Board::MAX_LEN);
       }
       else {
-        parameter.engine->setOrResetBoardSize(parameter.cfg,parameter.logger,parameter.seedRand,newXSize,newYSize,parameter.loggingToStderr);
+        (*(parameter.engine))->setOrResetBoardSize((*(parameter.cfg)),logger,(*(parameter.seedRand)),newXSize,newYSize,parameter.loggingToStderr);
       }
     }
 
     else if(command == "clear_board") {
-      parameter.engine->clearBoard();
+      (*(parameter.engine))->clearBoard();
     }
 
     else if(command == "komi") {
@@ -1749,14 +1746,14 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       else {
         if(parameter.isForcingKomi)
           newKomi = parameter.forcedKomi;
-        parameter.engine->updateKomiIfNew(newKomi);
+        (*(parameter.engine))->updateKomiIfNew(newKomi);
         //In case the controller tells us komi every move, restart pondering afterward.
-        maybeStartPondering = parameter.engine->bot->getRootHist().moveHistory.size() > 0;
+        maybeStartPondering = (*(parameter.engine))->bot->getRootHist().moveHistory.size() > 0;
       }
     }
 
     else if(command == "get_komi") {
-      response = Global::doubleToString(parameter.engine->getCurrentRules().komi);
+      response = Global::doubleToString((*(parameter.engine))->getCurrentRules().komi);
     }
 
     else if(command == "kata-get-rules") {
@@ -1764,7 +1761,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         response = "Expected no arguments for kata-get-rules but got '" + Global::concat(pieces," ") + "'";
       }
       else {
-        response = parameter.engine->getCurrentRules().toJsonStringNoKomi();
+        response = (*(parameter.engine))->getCurrentRules().toJsonStringNoKomi();
       }
     }
 
@@ -1773,7 +1770,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       bool parseSuccess = false;
       Rules newRules;
       try {
-        newRules = Rules::parseRulesWithoutKomi(rest,parameter.engine->getCurrentRules().komi);
+        newRules = Rules::parseRulesWithoutKomi(rest,(*(parameter.engine))->getCurrentRules().komi);
         parseSuccess = true;
       }
       catch(const StringError& err) {
@@ -1782,12 +1779,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
       if(parseSuccess) {
         string error;
-        bool suc = parameter.engine->setRulesNotIncludingKomi(newRules,error);
+        bool suc = (*(parameter.engine))->setRulesNotIncludingKomi(newRules,error);
         if(!suc) {
           responseIsError = true;
           response = error;
         }
-        parameter.logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
+        logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
         if(!parameter.loggingToStderr)
           cerr << "Changed rules to " + newRules.toStringNoKomiMaybeNice() << endl;
       }
@@ -1800,7 +1797,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
       else {
         bool parseSuccess = false;
-        Rules currentRules = parameter.engine->getCurrentRules();
+        Rules currentRules = (*(parameter.engine))->getCurrentRules();
         Rules newRules;
         try {
           newRules = Rules::updateRules(pieces[0], pieces[1], currentRules);
@@ -1812,12 +1809,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         }
         if(parseSuccess) {
           string error;
-          bool suc = parameter.engine->setRulesNotIncludingKomi(newRules,error);
+          bool suc = (*(parameter.engine))->setRulesNotIncludingKomi(newRules,error);
           if(!suc) {
             responseIsError = true;
             response = error;
           }
-          parameter.logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
+          logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
           if(!parameter.loggingToStderr)
             cerr << "Changed rules to " + newRules.toStringNoKomiMaybeNice() << endl;
         }
@@ -1834,19 +1831,19 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       else {
         string s = Global::toLower(Global::trim(pieces[0]));
         if(s == "chinese") {
-          newRules = Rules::parseRulesWithoutKomi("chinese-kgs",parameter.engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("chinese-kgs",(*(parameter.engine))->getCurrentRules().komi);
           parseSuccess = true;
         }
         else if(s == "aga") {
-          newRules = Rules::parseRulesWithoutKomi("aga",parameter.engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("aga",(*(parameter.engine))->getCurrentRules().komi);
           parseSuccess = true;
         }
         else if(s == "new_zealand") {
-          newRules = Rules::parseRulesWithoutKomi("new_zealand",parameter.engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("new_zealand",(*(parameter.engine))->getCurrentRules().komi);
           parseSuccess = true;
         }
         else if(s == "japanese") {
-          newRules = Rules::parseRulesWithoutKomi("japanese",parameter.engine->getCurrentRules().komi);
+          newRules = Rules::parseRulesWithoutKomi("japanese",(*(parameter.engine))->getCurrentRules().komi);
           parseSuccess = true;
         }
         else {
@@ -1856,12 +1853,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
       if(parseSuccess) {
         string error;
-        bool suc = parameter.engine->setRulesNotIncludingKomi(newRules,error);
+        bool suc = (*(parameter.engine))->setRulesNotIncludingKomi(newRules,error);
         if(!suc) {
           responseIsError = true;
           response = error;
         }
-        parameter.logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
+        logger.write("Changed rules to " + newRules.toStringNoKomiMaybeNice());
         if(!parameter.loggingToStderr)
           cerr << "Changed rules to " + newRules.toStringNoKomiMaybeNice() << endl;
       }
@@ -1878,15 +1875,15 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         response = "Expected one arguments for kata-get-param but got '" + Global::concat(pieces," ") + "'";
       }
       else {
-        SearchParams params = parameter.engine->getParams();
+        SearchParams params = (*(parameter.engine))->getParams();
         if(pieces[0] == "playoutDoublingAdvantage") {
-          response = Global::doubleToString(parameter.engine->staticPlayoutDoublingAdvantage);
+          response = Global::doubleToString((*(parameter.engine))->staticPlayoutDoublingAdvantage);
         }
         else if(pieces[0] == "rootPolicyTemperature") {
           response = Global::doubleToString(params.rootPolicyTemperature);
         }
         else if(pieces[0] == "analysisWideRootNoise") {
-          response = Global::doubleToString(parameter.engine->analysisWideRootNoise);
+          response = Global::doubleToString((*(parameter.engine))->analysisWideRootNoise);
         }
         else {
           responseIsError = true;
@@ -1905,7 +1902,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         double d;
         if(pieces[0] == "playoutDoublingAdvantage") {
           if(Global::tryStringToDouble(pieces[1],d) && d >= -3.0 && d <= 3.0)
-            parameter.engine->setStaticPlayoutDoublingAdvantage(d);
+            (*(parameter.engine))->setStaticPlayoutDoublingAdvantage(d);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be float from -3.0 to 3.0";
@@ -1913,7 +1910,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         }
         else if(pieces[0] == "rootPolicyTemperature") {
           if(Global::tryStringToDouble(pieces[1],d) && d >= 0.01 && d <= 100.0)
-            parameter.engine->setRootPolicyTemperature(d);
+            (*(parameter.engine))->setRootPolicyTemperature(d);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be float from 0.01 to 100.0";
@@ -1921,7 +1918,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         }
         else if(pieces[0] == "analysisWideRootNoise") {
           if(Global::tryStringToDouble(pieces[1],d) && d >= 0.0 && d <= 5.0)
-            parameter.engine->setAnalysisWideRootNoise(d);
+            (*(parameter.engine))->setAnalysisWideRootNoise(d);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be float from 0.0 to 2.0";
@@ -1929,7 +1926,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         }
         else if(pieces[0] == "numSearchThreads") {
           if(Global::tryStringToInt(pieces[1],i) && i >= 1 && i <= 1024)
-            parameter.engine->setNumSearchThreads(i);
+            (*(parameter.engine))->setNumSearchThreads(i);
           else {
             responseIsError = true;
             response = "Invalid value for " + pieces[0] + ", must be integer from 1 to 1024";
@@ -1966,8 +1963,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
           tc = TimeControls::absoluteTime(mainTime);
         else
           tc = TimeControls::canadianOrByoYomiTime(mainTime,byoYomiTime,1,byoYomiStones);
-        parameter.engine->bTimeControls = tc;
-        parameter.engine->wTimeControls = tc;
+        (*(parameter.engine))->bTimeControls = tc;
+        (*(parameter.engine))->wTimeControls = tc;
       }
     }
 
@@ -1997,8 +1994,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         string what = Global::toLower(Global::trim(pieces[0]));
         if(what == "none") {
           TimeControls tc = TimeControls();
-          parameter.engine->bTimeControls = tc;
-          parameter.engine->wTimeControls = tc;
+          (*(parameter.engine))->bTimeControls = tc;
+          (*(parameter.engine))->wTimeControls = tc;
         }
         else if(what == "absolute") {
           double mainTime;
@@ -2014,8 +2011,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             response = e.what();
           }
           if(success) {
-            parameter.engine->bTimeControls = tc;
-            parameter.engine->wTimeControls = tc;
+            (*(parameter.engine))->bTimeControls = tc;
+            (*(parameter.engine))->wTimeControls = tc;
           }
         }
         else if(what == "canadian") {
@@ -2042,8 +2039,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             response = e.what();
           }
           if(success) {
-            parameter.engine->bTimeControls = tc;
-            parameter.engine->wTimeControls = tc;
+            (*(parameter.engine))->bTimeControls = tc;
+            (*(parameter.engine))->wTimeControls = tc;
           }
         }
         else if(what == "byoyomi") {
@@ -2067,8 +2064,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             response = e.what();
           }
           if(success) {
-            parameter.engine->bTimeControls = tc;
-            parameter.engine->wTimeControls = tc;
+            (*(parameter.engine))->bTimeControls = tc;
+            (*(parameter.engine))->wTimeControls = tc;
           }
         }
         else if(what == "fischer" && command == "kata-time_settings") {
@@ -2087,8 +2084,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             response = e.what();
           }
           if(success) {
-            parameter.engine->bTimeControls = tc;
-            parameter.engine->wTimeControls = tc;
+            (*(parameter.engine))->bTimeControls = tc;
+            (*(parameter.engine))->wTimeControls = tc;
           }
         }
         else if(what == "fischer-capped" && command == "kata-time_settings") {
@@ -2115,8 +2112,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             response = e.what();
           }
           if(success) {
-            parameter.engine->bTimeControls = tc;
-            parameter.engine->wTimeControls = tc;
+            (*(parameter.engine))->bTimeControls = tc;
+            (*(parameter.engine))->wTimeControls = tc;
           }
         }
         else {
@@ -2151,7 +2148,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         response = "invalid stones";
       }
       else {
-        TimeControls tc = pla == P_BLACK ? parameter.engine->bTimeControls : parameter.engine->wTimeControls;
+        TimeControls tc = pla == P_BLACK ? (*(parameter.engine))->bTimeControls : (*(parameter.engine))->wTimeControls;
         if(stones > 0 && tc.originalNumPeriods <= 0) {
           responseIsError = true;
           response = "stones left in period is > 0 but the time control used does not have any overtime periods";
@@ -2184,20 +2181,20 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             }
           }
           if(pla == P_BLACK)
-            parameter.engine->bTimeControls = tc;
+            (*(parameter.engine))->bTimeControls = tc;
           else
-            parameter.engine->wTimeControls = tc;
+            (*(parameter.engine))->wTimeControls = tc;
 
           //In case the controller tells us komi every move, restart pondering afterward.
-          maybeStartPondering = parameter.engine->bot->getRootHist().moveHistory.size() > 0;
+          maybeStartPondering = (*(parameter.engine))->bot->getRootHist().moveHistory.size() > 0;
         }
       }
     }
 
     else if(command == "kata-debug-print-tc") {
-      response += "Black "+ parameter.engine->bTimeControls.toDebugString(parameter.engine->bot->getRootBoard(),parameter.engine->bot->getRootHist(),parameter.initialParams.lagBuffer);
+      response += "Black "+ (*(parameter.engine))->bTimeControls.toDebugString((*(parameter.engine))->bot->getRootBoard(),(*(parameter.engine))->bot->getRootHist(),(*(parameter.initialParams)).lagBuffer);
       response += "\n";
-      response += "White "+ parameter.engine->wTimeControls.toDebugString(parameter.engine->bot->getRootBoard(),parameter.engine->bot->getRootHist(),parameter.initialParams.lagBuffer);
+      response += "White "+ (*(parameter.engine))->wTimeControls.toDebugString((*(parameter.engine))->bot->getRootBoard(),(*(parameter.engine))->bot->getRootHist(),(*(parameter.initialParams)).lagBuffer);
     }
 
     else if(command == "play") {
@@ -2211,12 +2208,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         responseIsError = true;
         response = "Could not parse color: '" + pieces[0] + "'";
       }
-      else if(!tryParseLoc(pieces[1],parameter.engine->bot->getRootBoard(),loc)) {
+      else if(!tryParseLoc(pieces[1],(*(parameter.engine))->bot->getRootBoard(),loc)) {
         responseIsError = true;
         response = "Could not parse vertex: '" + pieces[1] + "'";
       }
       else {
-        bool suc = parameter.engine->play(loc,pla);
+        bool suc = (*(parameter.engine))->play(loc,pla);
         if(!suc) {
           responseIsError = true;
           response = "illegal move";
@@ -2241,7 +2238,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             response += "could not parse color: '" + pieces[0] + "'";
             break;
           }
-          else if(!tryParseLoc(pieces[i+1],parameter.engine->bot->getRootBoard(),loc)) {
+          else if(!tryParseLoc(pieces[i+1],(*(parameter.engine))->bot->getRootBoard(),loc)) {
             responseIsError = true;
             response = "Expected a space-separated sequence of <COLOR> <VERTEX> pairs but got '" + Global::concat(pieces," ") + "': ";
             response += "Could not parse vertex: '" + pieces[1] + "'";
@@ -2256,7 +2253,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
           initialStones.push_back(Move(loc,pla));
         }
         if(!responseIsError) {
-          bool suc = parameter.engine->setPosition(initialStones);
+          bool suc = (*(parameter.engine))->setPosition(initialStones);
           if(!suc) {
             responseIsError = true;
             response = "Illegal stone placements - overlapping stones or stones with no liberties?";
@@ -2267,7 +2264,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
     }
 
     else if(command == "undo") {
-      bool suc = parameter.engine->undo();
+      bool suc = (*(parameter.engine))->undo();
       if(!suc) {
         responseIsError = true;
         response = "cannot undo";
@@ -2288,9 +2285,9 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         bool debug = command == "genmove_debug" || command == "search_debug";
         bool playChosenMove = command != "search_debug";
 
-        parameter.engine->genMove(
+        (*(parameter.engine))->genMove(
           pla,
-          parameter.logger,parameter.searchFactorWhenWinningThreshold,parameter.searchFactorWhenWinning,
+          logger,parameter.searchFactorWhenWinningThreshold,parameter.searchFactorWhenWinning,
           parameter.cleanupBeforePass,parameter.friendlyPass,parameter.ogsChatToStderr,
           parameter.allowResignation,parameter.resignThreshold,parameter.resignConsecTurns,parameter.resignMinScoreDifference,
           parameter.logSearchInfo,debug,playChosenMove,
@@ -2301,9 +2298,9 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
     }
 
     else if(command == "genmove_analyze" || command == "lz-genmove_analyze" || command == "kata-genmove_analyze") {
-      Player pla = parameter.engine->bot->getRootPla();
+      Player pla = (*(parameter.engine))->bot->getRootPla();
       bool parseFailed = false;
-      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, parameter.engine);
+      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, (*(parameter.engine)));
       if(parseFailed) {
         responseIsError = true;
         response = "Could not parse genmove_analyze arguments or arguments out of range: '" + Global::concat(pieces," ") + "'";
@@ -2318,9 +2315,9 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         else
           s_out << "=" << endl;
 
-        parameter.engine->genMove(
+        (*(parameter.engine))->genMove(
           pla,
-          parameter.logger,parameter.searchFactorWhenWinningThreshold,parameter.searchFactorWhenWinning,
+          logger,parameter.searchFactorWhenWinningThreshold,parameter.searchFactorWhenWinning,
           parameter.cleanupBeforePass,parameter.friendlyPass,parameter.ogsChatToStderr,
           parameter.allowResignation,parameter.resignThreshold,parameter.resignConsecTurns,parameter.resignMinScoreDifference,
           parameter.logSearchInfo,debug,playChosenMove,
@@ -2342,11 +2339,11 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
     }
 
     else if(command == "clear_cache") {
-      parameter.engine->clearCache();
+      (*(parameter.engine))->clearCache();
     }
     else if(command == "showboard") {
       ostringstream sout;
-      parameter.engine->bot->getRootHist().printBasicInfo(sout, parameter.engine->bot->getRootBoard());
+      (*(parameter.engine))->bot->getRootHist().printBasicInfo(sout, (*(parameter.engine))->bot->getRootBoard());
       response = Global::trim(filterDoubleNewlines(sout.str()));
     }
 
@@ -2364,12 +2361,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         responseIsError = true;
         response = "Number of handicap stones less than 2: '" + pieces[0] + "'";
       }
-      else if(!parameter.engine->bot->getRootBoard().isEmpty()) {
+      else if(!(*(parameter.engine))->bot->getRootBoard().isEmpty()) {
         responseIsError = true;
         response = "Board is not empty";
       }
       else {
-        parameter.engine->placeFixedHandicap(n,response,responseIsError);
+        (*(parameter.engine))->placeFixedHandicap(n,response,responseIsError);
       }
     }
 
@@ -2387,24 +2384,24 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         responseIsError = true;
         response = "Number of handicap stones less than 2: '" + pieces[0] + "'";
       }
-      else if(!parameter.engine->bot->getRootBoard().isEmpty()) {
+      else if(!(*(parameter.engine))->bot->getRootBoard().isEmpty()) {
         responseIsError = true;
         response = "Board is not empty";
       }
       else {
-        parameter.engine->placeFreeHandicap(n,response,responseIsError,parameter.seedRand);
+        (*(parameter.engine))->placeFreeHandicap(n,response,responseIsError,(*(parameter.seedRand)));
       }
     }
 
     else if(command == "set_free_handicap") {
-      if(!parameter.engine->bot->getRootBoard().isEmpty()) {
+      if(!(*(parameter.engine))->bot->getRootBoard().isEmpty()) {
         responseIsError = true;
         response = "Board is not empty";
       }
       else {
         vector<Loc> locs;
-        int xSize = parameter.engine->bot->getRootBoard().x_size;
-        int ySize = parameter.engine->bot->getRootBoard().y_size;
+        int xSize = (*(parameter.engine))->bot->getRootBoard().x_size;
+        int ySize = (*(parameter.engine))->bot->getRootBoard().y_size;
         Board board(xSize,ySize);
         for(int i = 0; i<pieces.size(); i++) {
           Loc loc;
@@ -2419,19 +2416,19 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
           board.setStone(locs[i],P_BLACK);
 
         Player pla = P_WHITE;
-        BoardHistory hist(board,pla,parameter.engine->getCurrentRules(),0);
+        BoardHistory hist(board,pla,(*(parameter.engine))->getCurrentRules(),0);
         hist.setInitialTurnNumber(board.numStonesOnBoard()); //Should give more accurate temperaure and time control behavior
         vector<Move> newMoveHistory;
-        parameter.engine->setPositionAndRules(pla,board,hist,board,pla,newMoveHistory);
+        (*(parameter.engine))->setPositionAndRules(pla,board,hist,board,pla,newMoveHistory);
       }
     }
 
     else if(command == "final_score") {
-      parameter.engine->stopAndWait();
+      (*(parameter.engine))->stopAndWait();
 
       Player winner = C_EMPTY;
       double finalWhiteMinusBlackScore = 0.0;
-      parameter.engine->computeAnticipatedWinnerAndScore(winner,finalWhiteMinusBlackScore);
+      (*(parameter.engine))->computeAnticipatedWinnerAndScore(winner,finalWhiteMinusBlackScore);
 
       if(winner == C_EMPTY)
         response = "0";
@@ -2463,8 +2460,8 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         }
 
         if(statusMode < 3) {
-          vector<bool> isAlive = parameter.engine->computeAnticipatedStatuses();
-          Board board = parameter.engine->bot->getRootBoard();
+          vector<bool> isAlive = (*(parameter.engine))->computeAnticipatedStatuses();
+          Board board = (*(parameter.engine))->bot->getRootBoard();
           vector<Loc> locsToReport;
 
           if(statusMode == 0) {
@@ -2539,17 +2536,17 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             if(!moveNumberSpecified || moveNumber > sgf->moves.size())
               moveNumber = (int)sgf->moves.size();
             sgfRules = sgf->getRulesOrWarn(
-              parameter.engine->getCurrentRules(), //Use current rules as default
+              (*(parameter.engine))->getCurrentRules(), //Use current rules as default
               [&logger](const string& msg) { logger.write(msg); cerr << msg << endl; }
             );
-            if(parameter.engine->nnEval != NULL) {
+            if((*(parameter.engine))->nnEval != NULL) {
               bool rulesWereSupported;
-              Rules supportedRules = parameter.engine->nnEval->getSupportedRules(sgfRules,rulesWereSupported);
+              Rules supportedRules = (*(parameter.engine))->nnEval->getSupportedRules(sgfRules,rulesWereSupported);
               if(!rulesWereSupported) {
                 ostringstream out;
                 out << "WARNING: Rules " << sgfRules.toJsonStringNoKomi()
                     << " from sgf not supported by neural net, using " << supportedRules.toJsonStringNoKomi() << " instead";
-                parameter.logger.write(out.str());
+                logger.write(out.str());
                 if(!parameter.loggingToStderr)
                   cerr << out.str() << endl;
                 sgfRules = supportedRules;
@@ -2561,12 +2558,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
 
             {
               //See if the rules differ, IGNORING komi differences
-              Rules currentRules = parameter.engine->getCurrentRules();
+              Rules currentRules = (*(parameter.engine))->getCurrentRules();
               currentRules.komi = sgfRules.komi;
               if(sgfRules != currentRules) {
                 ostringstream out;
                 out << "Changing rules to " << sgfRules.toJsonStringNoKomi();
-                parameter.logger.write(out.str());
+                logger.write(out.str());
                 if(!parameter.loggingToStderr)
                   cerr << out.str() << endl;
               }
@@ -2597,15 +2594,15 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
           }
 
           if(sgfParseSuccess) {
-            if(sgfRules.komi != parameter.engine->getCurrentRules().komi) {
+            if(sgfRules.komi != (*(parameter.engine))->getCurrentRules().komi) {
               ostringstream out;
               out << "Changing komi to " << sgfRules.komi;
-              parameter.logger.write(out.str());
+              logger.write(out.str());
               if(!parameter.loggingToStderr)
                 cerr << out.str() << endl;
             }
-            parameter.engine->setOrResetBoardSize(parameter.cfg,parameter.logger,parameter.seedRand,sgfBoard.x_size,sgfBoard.y_size,parameter.loggingToStderr);
-            parameter.engine->setPositionAndRules(sgfNextPla, sgfBoard, sgfHist, sgfInitialBoard, sgfInitialNextPla, sgfHist.moveHistory);
+            (*(parameter.engine))->setOrResetBoardSize((*(parameter.cfg)),logger,(*(parameter.seedRand)),sgfBoard.x_size,sgfBoard.y_size,parameter.loggingToStderr);
+            (*(parameter.engine))->setPositionAndRules(sgfNextPla, sgfBoard, sgfHist, sgfInitialBoard, sgfInitialNextPla, sgfHist.moveHistory);
           }
         }
       }
@@ -2618,13 +2615,13 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
       else if(pieces.size() == 0 || pieces[0] == "-") {
         ostringstream out;
-        WriteSgf::writeSgf(out,"","",parameter.engine->bot->getRootHist(),NULL,true,false);
+        WriteSgf::writeSgf(out,"","",(*(parameter.engine))->bot->getRootHist(),NULL,true,false);
         response = out.str();
       }
       else {
         ofstream out;
         if(FileUtils::tryOpen(out,pieces[0])) {
-          WriteSgf::writeSgf(out,"","",parameter.engine->bot->getRootHist(),NULL,true,false);
+          WriteSgf::writeSgf(out,"","",(*(parameter.engine))->bot->getRootHist(),NULL,true,false);
           out.close();
           response = "";
         }
@@ -2636,9 +2633,9 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
     }
 
     else if(command == "analyze" || command == "lz-analyze" || command == "kata-analyze") {
-      Player pla = parameter.engine->bot->getRootPla();
+      Player pla = (*(parameter.engine))->bot->getRootPla();
       bool parseFailed = false;
-      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, parameter.engine);
+      GTPEngine::AnalyzeArgs analyzeArgs = parseAnalyzeCommand(command, pieces, pla, parseFailed, (*(parameter.engine)));
 
       if(parseFailed) {
         responseIsError = true;
@@ -2651,7 +2648,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         else
           s_out << "=" << endl;
 
-        parameter.engine->analyze(pla, analyzeArgs, s_out);
+        (*(parameter.engine))->analyze(pla, analyzeArgs, s_out);
 
         //No response - currentlyAnalyzing will make sure we get a newline at the appropriate time, when stopped.
         suppressResponse = true;
@@ -2675,7 +2672,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         response = "Expected one argument 'all' or symmetry index [0-7] for kata-raw-nn but got '" + Global::concat(pieces," ") + "'";
       }
       else {
-        response = parameter.engine->rawNN(whichSymmetry);
+        response = (*(parameter.engine))->rawNN(whichSymmetry);
       }
     }
 
@@ -2690,7 +2687,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
       try {
         if(printBranch.length() > 0)
-          options = options.onlyBranch(parameter.engine->bot->getRootBoard(),printBranch);
+          options = options.onlyBranch((*(parameter.engine))->bot->getRootBoard(),printBranch);
       }
       catch(const StringError& e) {
         (void)e;
@@ -2698,12 +2695,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
         response = "Invalid move sequence";
       }
       if(!responseIsError) {
-        Search* search = parameter.engine->bot->getSearchStopAndWait();
+        Search* search = (*(parameter.engine))->bot->getSearchStopAndWait();
         ostringstream sout;
 
-        Player pla = parameter.engine->bot->getRootPla();
-        Board board = parameter.engine->bot->getRootBoard();
-        BoardHistory hist = parameter.engine->bot->getRootHist();
+        Player pla = (*(parameter.engine))->bot->getRootPla();
+        Board board = (*(parameter.engine))->bot->getRootBoard();
+        BoardHistory hist = (*(parameter.engine))->bot->getRootHist();
         bool allLegal = true;
         for(Loc loc: options.branch_) {
           bool suc = hist.makeBoardMoveTolerant(board, loc, pla, false);
@@ -2721,7 +2718,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
     }
     else if(command == "cputime" || command == "gomill-cpu_time") {
-      response = Global::doubleToString(parameter.engine->genmoveTimeSum);
+      response = Global::doubleToString((*(parameter.engine))->genmoveTimeSum);
     }
 
     else if(command == "benchmark") {
@@ -2741,10 +2738,10 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       }
 
       if(parsed) {
-        parameter.engine->stopAndWait();
+        (*(parameter.engine))->stopAndWait();
 
-        int boardSizeX = parameter.engine->bot->getRootBoard().x_size;
-        int boardSizeY = parameter.engine->bot->getRootBoard().y_size;
+        int boardSizeX = (*(parameter.engine))->bot->getRootBoard().x_size;
+        int boardSizeY = (*(parameter.engine))->bot->getRootBoard().y_size;
         if(boardSizeX != boardSizeY) {
           responseIsError = true;
           response =
@@ -2765,7 +2762,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
             const PlayUtils::BenchmarkResults* baseline = NULL;
             const double secondsPerGameMove = 1.0;
             const bool printElo = false;
-            SearchParams params = parameter.engine->getParams();
+            SearchParams params = (*(parameter.engine))->getParams();
             params.maxTime = 1.0e20;
             params.maxPlayouts = ((int64_t)1) << 50;
             params.maxVisits = numVisits;
@@ -2773,7 +2770,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
               params,
               sgf,
               10,
-              parameter.engine->nnEval,
+              (*(parameter.engine))->nnEval,
               baseline,
               secondsPerGameMove,
               printElo
@@ -2791,7 +2788,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
 
     else if(command == "stop") {
       //Stop any ongoing ponder or analysis
-      parameter.engine->stopAndWait();
+      (*(parameter.engine))->stopAndWait();
     }
 
     else {
@@ -2814,7 +2811,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       s_out << endl;
     }
     if(parameter.logAllGTPCommunication)
-      parameter.logger.write(response);
+      logger.write(response);
 
     if(shouldQuitAfterResponse){
       return true;
@@ -2822,12 +2819,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       
 
     if(maybeStartPondering && parameter.ponderingEnabled)
-      parameter.engine->ponder();
+      (*(parameter.engine))->ponder();
   }
   
 }
 
-outputParam GTPReady(const vector<string>& args) {
+outputParam GTPReady(const vector<string>& args, Logger& logger) {
   Board::initHash();
   ScoreValue::initTables();
   Rand seedRand;
@@ -2855,7 +2852,7 @@ outputParam GTPReady(const vector<string>& args) {
     throw StringError("Error");
   }
 
-  Logger logger;
+  
   if(cfg.contains("logFile") && cfg.contains("logDir"))
     throw StringError("Cannot specify both logFile and logDir in config");
   else if(cfg.contains("logFile"))
@@ -3010,22 +3007,24 @@ outputParam GTPReady(const vector<string>& args) {
   }
   outputParam result(logAllGTPCommunication, logSearchInfo, searchFactorWhenWinning, searchFactorWhenWinningThreshold,
           preventEncore, cleanupBeforePass,  friendlyPass, ogsChatToStderr,ponderingEnabled, allowResignation, resignThreshold, 
-          resignConsecTurns, resignMinScoreDifference, loggingToStderr,overrideVersion,logger,cfg,engine,
-          seedRand,isForcingKomi,forcedKomi,initialParams,perspective);
+          resignConsecTurns, resignMinScoreDifference, loggingToStderr,overrideVersion,&cfg,&engine,
+          &seedRand,isForcingKomi,forcedKomi,&initialParams,perspective);
 
   return result;
 
 }
 
 int MainCmds::gtp(const vector<string>& args, std::istream& s_in, std::ostream& s_out) {
-  outputParam result = GTPReady(args);
-
-  GTPLoop(s_in, s_out,result, result.logger);
+  Logger logger;
+  outputParam result = GTPReady(args, logger);
+  
+  
+  GTPLoop(s_in, s_out,result, logger);
   delete result.engine;
   result.engine = NULL;
   NeuralNet::globalCleanup();
   ScoreValue::freeTables();
-  result.logger.write("All cleaned up, quitting");
+  logger.write("All cleaned up, quitting");
   return 0;
 }
 
@@ -3033,7 +3032,8 @@ int MainCmds::gtponport(const vector<string>& args) {
   asio::io_service io_service;
   asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), 5678);
   asio::ip::tcp::acceptor acceptor(io_service, endpoint);
-  outputParam result = GTPReady(args);
+  Logger logger;
+  outputParam result = GTPReady(args, logger);
   while(true) {
     //waitting for connection
     asio::ip::tcp::iostream stream;
@@ -3041,7 +3041,7 @@ int MainCmds::gtponport(const vector<string>& args) {
     acceptor.accept(*stream.rdbuf(), peer);
     std::string ip = peer.address().to_string();
     stream.rdbuf()->set_option(asio::ip::tcp::socket::keep_alive(true));
-    bool shouldQuitAfterResponse = GTPLoop(stream, stream,result, result.logger);
+    bool shouldQuitAfterResponse = GTPLoop(stream, stream,result, logger);
     if(shouldQuitAfterResponse){
       break;
     }
@@ -3050,6 +3050,6 @@ int MainCmds::gtponport(const vector<string>& args) {
   result.engine = NULL;
   NeuralNet::globalCleanup();
   ScoreValue::freeTables();
-  result.logger.write("All cleaned up, quitting");
+  logger.write("All cleaned up, quitting");
   return 0;
 }
