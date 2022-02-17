@@ -1565,6 +1565,7 @@ struct outputParam {
 bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger){
   bool currentlyAnalyzing = false;
   string line;
+  bool shouldQuitAfterResponse = false;
   while(getline(s_in,line)) {
     //Parse command, extracting out the command itself, the arguments, and any GTP id number for the command.
     string command;
@@ -1639,7 +1640,7 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
 
     bool responseIsError = false;
     bool suppressResponse = false;
-    bool shouldQuitAfterResponse = false;
+    
     bool maybeStartPondering = false;
     string response;
 
@@ -2800,12 +2801,10 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       response = Global::intToString(id) + " " + response;
     else
       response = " " + response;
-
     if(responseIsError)
       response = "?" + response;
     else
       response = "=" + response;
-
     if(!suppressResponse) {
       s_out << response << endl;
       s_out << endl;
@@ -2814,14 +2813,12 @@ bool GTPLoop(istream& s_in, ostream& s_out,outputParam parameter,Logger& logger)
       logger.write(response);
 
     if(shouldQuitAfterResponse){
-      return true;
+      break;
     }
-      
-
     if(maybeStartPondering && parameter.ponderingEnabled)
       (*(parameter.engine))->ponder();
   }
-  
+  return shouldQuitAfterResponse;
 }
 
 outputParam GTPReady(const vector<string>& args, Logger& logger) {
@@ -3017,11 +3014,9 @@ outputParam GTPReady(const vector<string>& args, Logger& logger) {
 int MainCmds::gtp(const vector<string>& args, std::istream& s_in, std::ostream& s_out) {
   Logger logger;
   outputParam result = GTPReady(args, logger);
-  
-  
   GTPLoop(s_in, s_out,result, logger);
-  delete result.engine;
-  result.engine = NULL;
+  // delete result.engine;
+  // result.engine = NULL;
   NeuralNet::globalCleanup();
   ScoreValue::freeTables();
   logger.write("All cleaned up, quitting");
@@ -3032,24 +3027,30 @@ int MainCmds::gtponport(const vector<string>& args) {
   asio::io_service io_service;
   asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), 5678);
   asio::ip::tcp::acceptor acceptor(io_service, endpoint);
-  Logger logger;
-  outputParam result = GTPReady(args, logger);
+  //将这部分移入while循环内 解决engine指针调用错误问题。
+  // Logger logger;
+  // outputParam result = GTPReady(args, logger);
   while(true) {
     //waitting for connection
     asio::ip::tcp::iostream stream;
     asio::ip::tcp::endpoint peer;
     acceptor.accept(*stream.rdbuf(), peer);
     std::string ip = peer.address().to_string();
+    std::cout << "connect with:  " << ip << std::endl; 
     stream.rdbuf()->set_option(asio::ip::tcp::socket::keep_alive(true));
+    Logger logger;
+    outputParam result = GTPReady(args, logger);
     bool shouldQuitAfterResponse = GTPLoop(stream, stream,result, logger);
     if(shouldQuitAfterResponse){
       break;
     }
+    NeuralNet::globalCleanup();
+    ScoreValue::freeTables();
+    logger.write("All cleaned up, quitting");
+    std::cout << "disconnect!" << std::endl;
   }
-  delete result.engine;
-  result.engine = NULL;
-  NeuralNet::globalCleanup();
-  ScoreValue::freeTables();
-  logger.write("All cleaned up, quitting");
+  // delete result.engine;
+  // result.engine = NULL;
+  
   return 0;
 }
