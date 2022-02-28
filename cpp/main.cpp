@@ -127,6 +127,8 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::dataminesgfs(subArgs);
   else if(subcommand == "genbook")
     return MainCmds::genbook(subArgs);
+  else if(subcommand == "checkbook")
+    return MainCmds::checkbook(subArgs);
   else if(subcommand == "trystartposes")
     return MainCmds::trystartposes(subArgs);
   else if(subcommand == "viewstartposes")
@@ -160,6 +162,7 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
 
 int main(int argc, const char* const* argv) {
   vector<string> args = MainArgs::getCommandLineArgsUTF8(argc,argv);
+  MainArgs::makeCoutAndCerrAcceptUTF8();
 
   if(args.size() < 2) {
     printHelp(args);

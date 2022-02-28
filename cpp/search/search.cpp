@@ -631,8 +631,12 @@ void Search::setPlayerAndClearHistory(Player pla) {
   rootHistory.setAssumeMultipleStartingBlackMovesAreHandicap(assumeMultipleStartingBlackMovesAreHandicap);
 
   rootKoHashTable->recompute(rootHistory);
-  avoidMoveUntilByLocBlack.clear();
-  avoidMoveUntilByLocWhite.clear();
+
+  //If changing the player alone, don't clear these, leave the user's setting - the user may have tried
+  //to adjust the player or will be calling runWholeSearchAndGetMove with a different player and will
+  //still want avoid moves to apply.
+  //avoidMoveUntilByLocBlack.clear();
+  //avoidMoveUntilByLocWhite.clear();
 }
 
 void Search::setPlayerIfNew(Player pla) {
@@ -3225,7 +3229,7 @@ void Search::maybeRecomputeExistingNNOutput(
     //We accept this and tolerate that for a few iterations potentially we will be using the OLD policy - without noise,
     //or without root temperature, etc.
     //Or if we have none of those things, then we'll not end up updating anything except the age, which is okay too.
-    int oldAge = node.nodeAge.exchange(searchNodeAge,std::memory_order_acq_rel);
+    uint32_t oldAge = node.nodeAge.exchange(searchNodeAge,std::memory_order_acq_rel);
     if(oldAge < searchNodeAge) {
       NNOutput* nnOutput = node.getNNOutput();
       assert(nnOutput != NULL);
