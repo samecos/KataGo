@@ -44,6 +44,7 @@ namespace MainCmds {
   int sampleinitializations(const std::vector<std::string>& args);
   int gtponport(const std::vector<std::string>& args);
   int sandbox();
+  //int mctsserver(const std::vector<std::string>& args);
 }
 
 namespace Version {
